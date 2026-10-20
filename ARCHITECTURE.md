@@ -228,7 +228,7 @@ The advanced part is not distributed infrastructure. It is durable job state, id
   csrf.go
 
 /internal/domain
-  service.go             create, update, archive, import
+  service.go             create, update, archive, restore, permanent delete, import
   normalize.go           IDNA and validation
   expiry.go              expiry date and calendar math
 
@@ -632,6 +632,8 @@ erDiagram
 - `alert_rules` check: `offset_value > 0 OR direction = 'before'`. Zero after expiry is not allowed. Zero before means expiry day.
 - `domains.version` increments on update for optimistic concurrency.
 - `channels` and `alert_rules` use soft archive through `archived_at`.
+- `domains` use soft archive through `state = 'archived'` and `archived_at`. Restore clears both.
+- Permanent domain deletion is admin-only, requires the archived state, and cascades checks, rules, incidents, and notifications. It also removes the `domain-check:<id>` job.
 - Delete endpoints archive channels and rules so delivery history stays intact.
 - All timestamps stored UTC.
 - IDs are UUIDv7 for time-sortable primary keys.
@@ -679,7 +681,7 @@ CREATE INDEX idx_audit_time
 | Audit log | 365 days |
 | Completed jobs | 7 days |
 | Expired sessions | Delete daily |
-| Archived domains | Manual purge |
+| Archived domains | Until permanently deleted by an admin |
 
 Retention values are runtime settings. Cleanup is a scheduled job.
 
@@ -754,6 +756,7 @@ Unknown expiry:
 - Manual check allowed once per 5 minutes per domain.
 - Paused domains are not checked.
 - Archived domains are not checked.
+- Restoring an archived domain activates it, schedules an immediate check, and reconciles expiry alerts.
 
 ### 7.6 Rate limits
 
@@ -1048,6 +1051,8 @@ Pending notifications must be reconciled when alert settings change.
 | Domain paused | Cancel pending expiry notifications and suspend system incident alerting |
 | Domain resumed | Reevaluate expiry alerts and queue a check |
 | Domain archived | Cancel all pending notifications for that domain |
+| Domain restored | Reactivate the domain, reconcile expiry alerts, and queue a check |
+| Domain permanently deleted | Remove archived domain, checks, rules, incidents, notifications, and its check job |
 | Channel muted | Hold pending notifications, no cancellation |
 | Channel disabled or archived | Cancel pending notifications for that channel |
 | Global pause | Hold all pending notifications |
@@ -1267,6 +1272,8 @@ Rules:
 | View dashboard | Yes | Yes | Yes |
 | View domains and checks | Yes | Yes | Yes |
 | Add or edit domains | No | Yes | Yes |
+| Restore archived domains | No | Yes | Yes |
+| Delete archived domains permanently | No | No | Yes |
 | Trigger manual check | No | Yes | Yes |
 | Create domain alert rules | No | Yes | Yes |
 | Create global alert rules | No | No | Yes |
@@ -1378,7 +1385,7 @@ Audit events include:
 - Login success and failure.
 - Logout.
 - Role changes observed at login.
-- Domain create, update, archive.
+- Domain create, update, archive, restore, permanent delete.
 - Manual check request.
 - Alert rule create, update, archive.
 - Channel create, update, archive, test.
@@ -1452,6 +1459,8 @@ Error shape:
 | GET | `/api/v1/domains/{id}` | Domain detail |
 | PATCH | `/api/v1/domains/{id}` | Update domain |
 | DELETE | `/api/v1/domains/{id}` | Archive domain |
+| POST | `/api/v1/domains/{id}/restore` | Restore an archived domain |
+| DELETE | `/api/v1/domains/{id}/permanent` | Permanently delete an archived domain (admin) |
 | POST | `/api/v1/domains/{id}/check` | Queue manual check |
 | POST | `/api/v1/domains/{id}/mute` | Mute expiry alerts |
 | DELETE | `/api/v1/domains/{id}/mute` | Unmute |
@@ -1490,6 +1499,7 @@ Error shape:
 | PUT | `/api/v1/settings/alerts` | Timezone, default time, pause |
 | PUT | `/api/v1/settings/retention` | Retention policy |
 | GET | `/api/v1/incidents` | List system incidents |
+| GET | `/api/v1/notifications` | Delivery outbox, with optional archived-domain exclusion |
 | POST | `/api/v1/notifications/{id}/retry` | Retry delivery |
 | GET | `/api/v1/users` | List OIDC-provisioned users |
 | POST | `/api/v1/users/{id}/revoke-sessions` | Revoke user sessions |

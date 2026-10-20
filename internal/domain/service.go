@@ -157,6 +157,36 @@ func (s *Service) Archive(ctx context.Context, id string, now time.Time) error {
 	return s.Store.CancelJobsByKey(ctx, "domain-check:"+id, now)
 }
 
+// Restore returns an archived domain to the active watchlist.
+func (s *Service) Restore(ctx context.Context, id string, now time.Time) (store.Domain, error) {
+	if err := s.Store.RestoreDomain(ctx, id, now); err != nil {
+		return store.Domain{}, err
+	}
+	d, err := s.Store.GetDomain(ctx, id)
+	if err != nil {
+		return store.Domain{}, err
+	}
+	if err := s.Alerts.ReconcileDomain(ctx, d, now); err != nil {
+		s.logger().Error("reconcile restored domain", "domain_id", id, "error", err)
+	}
+	if _, _, err := s.enqueueCheck(ctx, id, now); err != nil {
+		s.logger().Error("enqueue restored domain check", "domain_id", id, "error", err)
+	}
+	return d, nil
+}
+
+// DeletePermanently removes an archived domain and all of its dependent data.
+func (s *Service) DeletePermanently(ctx context.Context, id string) error {
+	d, err := s.Store.GetDomain(ctx, id)
+	if err != nil {
+		return err
+	}
+	if d.State != "archived" {
+		return ErrInvalidState
+	}
+	return s.Store.DeleteDomainPermanent(ctx, id)
+}
+
 // Mute holds expiry notifications for a domain. A nil until clears it.
 func (s *Service) Mute(ctx context.Context, id string, until *time.Time, reason string, now time.Time) (store.Domain, error) {
 	if until != nil && !until.After(now) {

@@ -41,7 +41,11 @@ export function IncidentsPage() {
   const [retryTarget, setRetryTarget] = useState<Notification | null>(null)
 
   const incidents = useIncidents({ limit: 100 })
-  const notifications = useNotifications({ state: state === 'all' ? undefined : state, limit: 100 })
+  const notifications = useNotifications({
+    state: state === 'all' ? undefined : state,
+    limit: 100,
+    exclude_archived: true,
+  })
   const domains = useDomains({ limit: 200 })
 
   const domainNames = useMemo(() => {
@@ -147,7 +151,7 @@ export function IncidentsPage() {
 
       <Panel
         title="Delivery outbox"
-        description="Every queued, sent, failed, suppressed, or canceled notification."
+        description="Current and system deliveries. Archived domain history stays in the domain detail."
         action={
           <Select value={state} onChange={(event) => setState(event.target.value)} className="w-36" aria-label="Filter notification state">
             <option value="all">All states</option>

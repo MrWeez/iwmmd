@@ -46,58 +46,152 @@ function errorMessage(error: unknown): string {
   return 'The request could not be completed.'
 }
 
-function AlertTimeline({ count }: { count: number }) {
-  const labels = [
-    { label: '90 days', position: 0, align: 'start' },
-    { label: '30 days', position: 28, align: 'middle' },
-    { label: '7 days', position: 52, align: 'middle' },
-    { label: 'expiry', position: 65, align: 'middle', strong: true },
-    { label: 'after', position: 82, align: 'middle' },
-  ]
+type RuleSort = 'timeline' | 'after' | 'name' | 'scope' | 'send' | 'state'
+
+function offsetDays(rule: Pick<Rule, 'offset_value' | 'offset_unit'>): number {
+  return rule.offset_value * (rule.offset_unit === 'months' ? 30 : 1)
+}
+
+function byName(a: Rule, b: Rule): number {
+  return a.name.localeCompare(b.name)
+}
+
+function sortRules(rules: Rule[], sort: RuleSort): Rule[] {
+  const sorted = [...rules]
+  switch (sort) {
+    case 'name':
+      return sorted.sort(byName)
+    case 'scope':
+      return sorted.sort((a, b) => a.scope.localeCompare(b.scope) || byName(a, b))
+    case 'send':
+      return sorted.sort((a, b) => a.send_time_local.localeCompare(b.send_time_local) || byName(a, b))
+    case 'state':
+      return sorted.sort((a, b) => Number(b.enabled) - Number(a.enabled) || byName(a, b))
+    case 'after':
+      return sorted.sort((a, b) => {
+        if (a.direction !== b.direction) return a.direction === 'after' ? -1 : 1
+        if (a.direction === 'after') return offsetDays(a) - offsetDays(b) || byName(a, b)
+        return offsetDays(b) - offsetDays(a) || byName(a, b)
+      })
+    case 'timeline':
+    default:
+      return sorted.sort((a, b) => {
+        if (a.direction !== b.direction) return a.direction === 'before' ? -1 : 1
+        if (a.direction === 'before') return offsetDays(b) - offsetDays(a) || byName(a, b)
+        return offsetDays(a) - offsetDays(b) || byName(a, b)
+      })
+  }
+}
+
+type TimelineGroup = {
+  key: string
+  direction: 'before' | 'after'
+  days: number
+  label: string
+  short: string
+  rules: Rule[]
+  position: number
+}
+
+function shortOffset(rule: Pick<Rule, 'offset_value' | 'offset_unit' | 'direction'>): string {
+  if (rule.offset_value === 0) return 'expiry'
+  return `${rule.offset_value}${rule.offset_unit === 'months' ? 'mo' : 'd'}`
+}
+
+function AlertTimeline({ rules }: { rules: Rule[] }) {
+  const groups = useMemo<TimelineGroup[]>(() => {
+    const grouped = new Map<string, Omit<TimelineGroup, 'position'>>()
+    for (const rule of rules) {
+      const key = `${rule.direction}:${rule.offset_value}:${rule.offset_unit}`
+      const existing = grouped.get(key)
+      if (existing) {
+        existing.rules.push(rule)
+      } else {
+        grouped.set(key, {
+          key,
+          direction: rule.direction,
+          days: offsetDays(rule),
+          label: `${rule.offset_value} ${rule.offset_unit} ${rule.direction}`,
+          short: shortOffset(rule),
+          rules: [rule],
+        })
+      }
+    }
+    const values = [...grouped.values()]
+    const maxBefore = Math.max(1, ...values.filter((group) => group.direction === 'before').map((group) => group.days))
+    const maxAfter = Math.max(1, ...values.filter((group) => group.direction === 'after').map((group) => group.days))
+    return values
+      .map((group) => ({
+        ...group,
+        position:
+          group.direction === 'before'
+            ? 68 - (group.days / maxBefore) * 60
+            : 68 + (group.days / maxAfter) * 28,
+      }))
+      .sort((a, b) => a.position - b.position)
+  }, [rules])
+
+  const enabled = rules.filter((rule) => rule.enabled).length
 
   return (
-    <div className="px-4 pb-5 pt-6 sm:px-5">
+    <div className="px-4 pb-5 pt-5 sm:px-5">
       <div className="relative h-36 overflow-hidden rounded-md border border-line bg-surface-2/55">
+        <div className="absolute left-6 top-3 text-[10px] font-medium text-accent">Before expiry</div>
+        <div className="absolute right-6 top-3 text-[10px] font-medium text-muted">After expiry</div>
+
         <div className="absolute inset-x-6 top-1/2 -translate-y-1/2" aria-hidden="true">
           <div className="flex items-center">
-            <div className="h-px bg-accent/70" style={{ width: '65%' }} />
-            <div className="h-8 w-px bg-ink/70" />
+            <div className="h-px bg-accent/70" style={{ width: '68%' }} />
+            <div className="h-9 w-px bg-ink/70" />
             <div className="h-px flex-1 border-t border-dashed border-line-strong" />
           </div>
         </div>
-        <div className="absolute inset-x-6 top-[calc(50%-2.6rem)]">
-          {labels.map((item) => (
-            <span
-              key={item.label}
-              className={`absolute font-mono text-[10px] ${
-                item.strong ? 'font-semibold text-ink' : 'text-faint'
-              }`}
-              style={{
-                left: `${item.position}%`,
-                transform:
-                  item.align === 'start'
-                    ? 'none'
-                    : item.align === 'middle'
-                      ? 'translateX(-50%)'
-                      : 'translateX(-100%)',
-              }}
-            >
-              {item.label}
-            </span>
-          ))}
+
+        <div className="pointer-events-none absolute inset-x-6 inset-y-0">
+          {groups.map((group, index) => {
+            const allDisabled = group.rules.every((rule) => !rule.enabled)
+            const title = `${group.label}: ${group.rules
+              .map((rule) => `${rule.name} at ${rule.send_time_local}`)
+              .join(', ')}`
+            return (
+              <div
+                key={group.key}
+                className="pointer-events-auto absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
+                style={{ left: `${group.position}%` }}
+                title={title}
+              >
+                <span
+                  className={`block size-2.5 rounded-full border-2 border-surface ${
+                    allDisabled ? 'bg-faint' : 'bg-accent'
+                  }`}
+                />
+                <span
+                  className={`absolute left-1/2 -translate-x-1/2 whitespace-nowrap rounded border border-line bg-surface px-1 py-0.5 font-mono text-[9px] leading-none ${
+                    allDisabled ? 'text-faint' : 'text-ink'
+                  } ${index % 2 === 0 ? 'bottom-4' : 'top-4'}`}
+                >
+                  {group.short}
+                  {group.rules.length > 1 ? ` ×${group.rules.length}` : ''}
+                </span>
+              </div>
+            )
+          })}
+          {groups.length === 0 ? (
+            <div className="absolute inset-0 grid place-items-center">
+              <span className="text-[11px] text-faint">No alert offsets configured yet</span>
+            </div>
+          ) : null}
         </div>
-        <div className="absolute inset-x-6 top-[calc(50%+1.1rem)] flex justify-between">
-          <span className="text-[10px] font-medium text-accent">Before expiry</span>
-          <span className="text-[10px] font-medium text-muted">After expiry</span>
-        </div>
+
         <div className="absolute bottom-3 right-4">
-          <StatusPill tone={count ? 'ok' : 'neutral'} dot={false}>
-            {count} {count === 1 ? 'rule' : 'rules'}
+          <StatusPill tone={enabled ? 'ok' : 'neutral'} dot={false}>
+            {enabled} of {rules.length} active
           </StatusPill>
         </div>
       </div>
       <p className="mt-3 text-[11px] leading-5 text-muted">
-        Offsets are calendar-aware. A rule can fire several times before expiry and continue after it, each at its own send time.
+        Markers are alert offsets. Stacked counts mean several rules share the same offset. Calendar months are
+        applied to each domain's real expiry date.
       </p>
     </div>
   )
@@ -132,6 +226,7 @@ export function AlertsPage() {
 
   const [editorRule, setEditorRule] = useState<Rule | 'new' | null>(null)
   const [archiveTarget, setArchiveTarget] = useState<Rule | null>(null)
+  const [sortBy, setSortBy] = useState<RuleSort>('timeline')
 
   const channelNames = useMemo(() => {
     const map = new Map<string, string>()
@@ -145,7 +240,8 @@ export function AlertsPage() {
     return map
   }, [domains.data])
 
-  const items = rules.data?.items ?? []
+  const items = useMemo(() => rules.data?.items ?? [], [rules.data])
+  const sortedItems = useMemo(() => sortRules(items, sortBy), [items, sortBy])
   const globalCount = items.filter((rule) => rule.scope === 'global').length
   const missingChannels = (channels.data?.items.length ?? 0) === 0
 
@@ -195,7 +291,7 @@ export function AlertsPage() {
             </StatusPill>
           }
         >
-          <AlertTimeline count={items.length} />
+          <AlertTimeline rules={items} />
         </Panel>
 
         <Panel title="How delivery works" description="Designed for interrupted self-hosted instances.">
@@ -217,9 +313,26 @@ export function AlertsPage() {
         title="Alert rules"
         description="Global rules apply to every domain unless a domain opts out."
         action={
-          <StatusPill tone="neutral" dot={false}>
-            {items.length} {items.length === 1 ? 'rule' : 'rules'}
-          </StatusPill>
+          <div className="flex items-center gap-2">
+            <div className="w-44">
+              <Select
+                aria-label="Sort alert rules"
+                value={sortBy}
+                onChange={(event) => setSortBy(event.target.value as RuleSort)}
+                className="h-8"
+              >
+                <option value="timeline">Before expiry first</option>
+                <option value="after">After expiry first</option>
+                <option value="name">Rule name</option>
+                <option value="scope">Scope</option>
+                <option value="send">Send time</option>
+                <option value="state">State</option>
+              </Select>
+            </div>
+            <StatusPill tone="neutral" dot={false}>
+              {items.length} {items.length === 1 ? 'rule' : 'rules'}
+            </StatusPill>
+          </div>
         }
       >
         {rules.isPending ? (
@@ -258,7 +371,7 @@ export function AlertsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {items.map((rule) => {
+                {sortedItems.map((rule) => {
                   const editable = canWrite && (rule.scope === 'domain' || isAdmin)
                   return (
                     <tr key={rule.id} className="transition-colors hover:bg-surface-2/45">

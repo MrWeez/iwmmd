@@ -346,6 +346,11 @@ export const api = {
 
   archiveDomain: (id: string) => request<void>(`/api/v1/domains/${id}`, { method: 'DELETE' }),
 
+  restoreDomain: (id: string) => request<Domain>(`/api/v1/domains/${id}/restore`, { method: 'POST' }),
+
+  deleteDomainPermanent: (id: string) =>
+    request<void>(`/api/v1/domains/${id}/permanent`, { method: 'DELETE' }),
+
   checkDomain: (id: string) => request<{ queued: boolean }>(`/api/v1/domains/${id}/check`, { method: 'POST' }),
 
   muteDomain: (id: string, input: { until: string; reason?: string }) =>
@@ -457,6 +462,7 @@ export const api = {
     channel_id?: string
     state?: string
     limit?: number
+    exclude_archived?: boolean
   } = {}) => request<{ items: Notification[] }>(`/api/v1/notifications${queryString(params)}`),
 
   domainNotifications: (id: string) =>
@@ -504,7 +510,12 @@ export function useMe() {
 }
 
 export function useStats() {
-  return useQuery({ queryKey: ['stats'], queryFn: api.stats, staleTime: 15_000 })
+  return useQuery({
+    queryKey: ['stats'],
+    queryFn: api.stats,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  })
 }
 
 export function useDomains(params: {
@@ -518,6 +529,8 @@ export function useDomains(params: {
     queryKey: ['domains', params],
     queryFn: () => api.domains(params),
     placeholderData: keepPreviousData,
+    staleTime: 5_000,
+    refetchInterval: 15_000,
   })
 }
 
@@ -526,6 +539,8 @@ export function useDomain(id: string | null) {
     queryKey: ['domain', id],
     queryFn: () => api.domain(id as string),
     enabled: Boolean(id),
+    staleTime: 5_000,
+    refetchInterval: 10_000,
   })
 }
 
@@ -534,6 +549,8 @@ export function useChecks(id: string | null) {
     queryKey: ['checks', id],
     queryFn: () => api.checks(id as string),
     enabled: Boolean(id),
+    staleTime: 5_000,
+    refetchInterval: 15_000,
   })
 }
 
@@ -558,6 +575,7 @@ export function useNotifications(params: {
   channel_id?: string
   state?: string
   limit?: number
+  exclude_archived?: boolean
 } = {}) {
   return useQuery({
     queryKey: ['notifications', params],

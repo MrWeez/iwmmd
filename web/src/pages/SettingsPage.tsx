@@ -195,26 +195,6 @@ export function SettingsPage() {
       {activeTab === 'users' ? <UsersPanel /> : null}
       {activeTab === 'audit' ? <AuditPanel /> : null}
       {activeTab === 'jobs' ? <JobsPanel /> : null}
-
-      <Panel title="Deployment" description="The supported ways to run IWMMD." bodyClassName="px-4 sm:px-5">
-        <dl>
-          <DefinitionRow label="Container image">
-            <Code>ghcr.io/mrweez/iwmmd:latest</Code>, multi-arch for amd64 and arm64.
-          </DefinitionRow>
-          <DefinitionRow label="Local build">
-            <Code>docker compose -f compose.build.yaml up --build</Code> builds the same root Dockerfile.
-          </DefinitionRow>
-          <DefinitionRow label="Ports">
-            <Code>8080</Code> for HTTP, <Code>8443</Code> when built-in TLS is enabled.
-          </DefinitionRow>
-          <DefinitionRow label="Health">
-            <Code>/healthz</Code> for liveness, <Code>/readyz</Code> for database readiness.
-          </DefinitionRow>
-          <DefinitionRow label="Binary">
-            <Code>iwmmd serve --config /etc/iwmmd/config.toml</Code> for a standalone install.
-          </DefinitionRow>
-        </dl>
-      </Panel>
     </div>
   )
 }

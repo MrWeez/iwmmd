@@ -131,6 +131,39 @@ func (a *API) archiveDomain(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (a *API) restoreDomain(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "domainID")
+	before, err := a.deps.Store.GetDomain(r.Context(), id)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	d, err := a.deps.Domains.Restore(r.Context(), id, now())
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	user, _ := userFrom(r.Context())
+	a.audit(r, user, "domain.restore", "domain", id, mustJSON(toDomainDTO(before, now())), mustJSON(toDomainDTO(d, now())))
+	writeJSON(w, http.StatusOK, toDomainDTO(d, now()))
+}
+
+func (a *API) deleteDomainPermanent(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "domainID")
+	before, err := a.deps.Store.GetDomain(r.Context(), id)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	if err := a.deps.Domains.DeletePermanently(r.Context(), id); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	user, _ := userFrom(r.Context())
+	a.audit(r, user, "domain.delete", "domain", id, mustJSON(toDomainDTO(before, now())), "")
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (a *API) checkDomain(w http.ResponseWriter, r *http.Request) {
 	queued, err := a.deps.Domains.ManualCheck(r.Context(), chi.URLParam(r, "domainID"), now())
 	if err != nil {
@@ -206,7 +239,7 @@ func (a *API) rawCheck(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) domainNotifications(w http.ResponseWriter, r *http.Request) {
-	items, err := a.deps.Store.ListNotifications(r.Context(), chi.URLParam(r, "domainID"), "", "", parseLimit(r, 50, 200))
+	items, err := a.deps.Store.ListNotifications(r.Context(), chi.URLParam(r, "domainID"), "", "", parseLimit(r, 50, 200), false)
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -277,7 +310,8 @@ func (a *API) listIncidents(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) listNotifications(w http.ResponseWriter, r *http.Request) {
 	items, err := a.deps.Store.ListNotifications(r.Context(), r.URL.Query().Get("domain_id"),
-		r.URL.Query().Get("channel_id"), r.URL.Query().Get("state"), parseLimit(r, 50, 200))
+		r.URL.Query().Get("channel_id"), r.URL.Query().Get("state"), parseLimit(r, 50, 200),
+		r.URL.Query().Get("exclude_archived") == "true")
 	if err != nil {
 		writeServiceError(w, err)
 		return

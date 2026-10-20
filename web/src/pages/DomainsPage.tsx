@@ -71,6 +71,7 @@ export function DomainsPage() {
   const client = useQueryClient()
   const me = useMe()
   const canWrite = me.data?.user?.role === 'member' || me.data?.user?.role === 'admin'
+  const isAdmin = me.data?.user?.role === 'admin'
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -83,6 +84,8 @@ export function DomainsPage() {
   const [editDomain, setEditDomain] = useState<Domain | null>(null)
   const [muteDomain, setMuteDomain] = useState<Domain | null>(null)
   const [archiveDomainTarget, setArchiveDomainTarget] = useState<Domain | null>(null)
+  const [restoreDomainTarget, setRestoreDomainTarget] = useState<Domain | null>(null)
+  const [deleteDomainTarget, setDeleteDomainTarget] = useState<Domain | null>(null)
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -305,7 +308,32 @@ export function DomainsPage() {
                         >
                           <SearchIcon className="size-3.5" />
                         </button>
-                        {canWrite ? (
+                        {domain.state === 'archived' ? (
+                          <>
+                            {canWrite ? (
+                              <button
+                                type="button"
+                                onClick={() => setRestoreDomainTarget(domain)}
+                                className="grid size-7 place-items-center rounded-md text-muted transition-colors hover:bg-accent-soft hover:text-accent"
+                                title="Restore domain"
+                                aria-label={`Restore ${domain.name}`}
+                              >
+                                <PlayIcon className="size-3.5" />
+                              </button>
+                            ) : null}
+                            {isAdmin ? (
+                              <button
+                                type="button"
+                                onClick={() => setDeleteDomainTarget(domain)}
+                                className="grid size-7 place-items-center rounded-md text-muted transition-colors hover:bg-danger/10 hover:text-danger"
+                                title="Delete permanently"
+                                aria-label={`Delete ${domain.name} permanently`}
+                              >
+                                <TrashIcon className="size-3.5" />
+                              </button>
+                            ) : null}
+                          </>
+                        ) : canWrite ? (
                           <button
                             type="button"
                             onClick={() => setEditDomain(domain)}
@@ -381,9 +409,24 @@ export function DomainsPage() {
           onClose={() => setArchiveDomainTarget(null)}
         />
       ) : null}
+      {restoreDomainTarget ? (
+        <RestoreDomainDialog
+          key={restoreDomainTarget.id}
+          domain={restoreDomainTarget}
+          onClose={() => setRestoreDomainTarget(null)}
+        />
+      ) : null}
+      {deleteDomainTarget ? (
+        <DeleteDomainPermanentDialog
+          key={deleteDomainTarget.id}
+          domain={deleteDomainTarget}
+          onClose={() => setDeleteDomainTarget(null)}
+        />
+      ) : null}
       <DomainDetailDialog
         domainID={selectedID}
         canWrite={canWrite}
+        isAdmin={isAdmin}
         onClose={() => setSelectedID(null)}
         onEdit={(domain) => {
           setSelectedID(null)
@@ -396,6 +439,14 @@ export function DomainsPage() {
         onArchive={(domain) => {
           setSelectedID(null)
           setArchiveDomainTarget(domain)
+        }}
+        onRestore={(domain) => {
+          setSelectedID(null)
+          setRestoreDomainTarget(domain)
+        }}
+        onDeletePermanent={(domain) => {
+          setSelectedID(null)
+          setDeleteDomainTarget(domain)
         }}
       />
     </div>
@@ -770,20 +821,131 @@ function ArchiveDomainDialog({ domain, onClose }: { domain: Domain; onClose: () 
   )
 }
 
+function RestoreDomainDialog({ domain, onClose }: { domain: Domain; onClose: () => void }) {
+  const client = useQueryClient()
+  const mutation = useMutation({
+    mutationFn: () => api.restoreDomain(domain.id),
+    onSuccess: () => {
+      mutateRefresh(client)
+      onClose()
+    },
+  })
+  return (
+    <Dialog
+      open
+      onClose={() => {
+        if (!mutation.isPending) onClose()
+      }}
+      title={`Restore ${domain.name}`}
+      description="Scheduled checks and expiry alerts resume after the next reconcile."
+      footer={
+        <>
+          <SecondaryButton onClick={onClose} disabled={mutation.isPending}>
+            Cancel
+          </SecondaryButton>
+          <PrimaryButton onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+            <PlayIcon className="size-3.5" />
+            {mutation.isPending ? 'Restoring…' : 'Restore domain'}
+          </PrimaryButton>
+        </>
+      }
+    >
+      {mutation.error ? (
+        <Banner tone="error" title="Restore failed">
+          {errorMessage(mutation.error)}
+        </Banner>
+      ) : (
+        <div className="space-y-3">
+          {domain.archived_at ? (
+            <Banner tone="warn" title="Archived domain">
+              Archived {formatDateTime(domain.archived_at)}. Existing history is kept.
+            </Banner>
+          ) : null}
+          <p className="text-xs leading-5 text-muted">
+            Restoring clears the archive state, schedules the next check, and reconciles pending notifications.
+          </p>
+        </div>
+      )}
+    </Dialog>
+  )
+}
+
+function DeleteDomainPermanentDialog({ domain, onClose }: { domain: Domain; onClose: () => void }) {
+  const client = useQueryClient()
+  const [confirmation, setConfirmation] = useState('')
+  const mutation = useMutation({
+    mutationFn: () => api.deleteDomainPermanent(domain.id),
+    onSuccess: () => {
+      mutateRefresh(client)
+      onClose()
+    },
+  })
+  const confirmed = confirmation.trim() === domain.name
+
+  return (
+    <Dialog
+      open
+      onClose={() => {
+        if (!mutation.isPending) onClose()
+      }}
+      title={`Delete ${domain.name} permanently`}
+      description="This cannot be undone."
+      footer={
+        <>
+          <SecondaryButton onClick={onClose} disabled={mutation.isPending}>
+            Cancel
+          </SecondaryButton>
+          <DangerButton onClick={() => mutation.mutate()} disabled={!confirmed || mutation.isPending}>
+            <TrashIcon className="size-3.5" />
+            {mutation.isPending ? 'Deleting…' : 'Delete permanently'}
+          </DangerButton>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Banner tone="error" title="All dependent data is removed">
+          Checks, domain rules, incidents, notifications, and the scheduled check job are deleted with this domain.
+          Other archived domains are unaffected.
+        </Banner>
+        <FormField label="Confirmation" hint={`Type ${domain.name} exactly to enable deletion.`}>
+          <TextInput
+            autoFocus
+            value={confirmation}
+            onChange={(event) => setConfirmation(event.target.value)}
+            placeholder={domain.name}
+            autoComplete="off"
+          />
+        </FormField>
+        {mutation.error ? (
+          <Banner tone="error" title="Delete failed">
+            {errorMessage(mutation.error)}
+          </Banner>
+        ) : null}
+      </div>
+    </Dialog>
+  )
+}
+
 function DomainDetailDialog({
   domainID,
   canWrite,
+  isAdmin,
   onClose,
   onEdit,
   onMute,
   onArchive,
+  onRestore,
+  onDeletePermanent,
 }: {
   domainID: string | null
   canWrite: boolean
+  isAdmin: boolean
   onClose: () => void
   onEdit: (domain: Domain) => void
   onMute: (domain: Domain) => void
   onArchive: (domain: Domain) => void
+  onRestore: (domain: Domain) => void
+  onDeletePermanent: (domain: Domain) => void
 }) {
   const client = useQueryClient()
   const domain = useDomain(domainID)
@@ -808,27 +970,46 @@ function DomainDetailDialog({
       description={value ? `${value.name_ace} · version ${value.version}` : 'Loading domain…'}
       footer={
         value ? (
-          <>
-            <DangerButton onClick={() => onArchive(value)}>
-              <TrashIcon className="size-3.5" />
-              Archive
-            </DangerButton>
-            <div className="flex-1" />
-            <SecondaryButton onClick={() => checkNow.mutate()} disabled={checkNow.isPending || value.state !== 'active'}>
-              <PlayIcon className="size-3.5" />
-              {checkNow.isPending ? 'Queueing…' : 'Check now'}
-            </SecondaryButton>
-            <SecondaryButton onClick={() => onMute(value)}>
-              <PauseIcon className="size-3.5" />
-              Mute
-            </SecondaryButton>
-            {canWrite ? (
-              <PrimaryButton onClick={() => onEdit(value)}>
-                <PencilIcon className="size-3.5" />
-                Edit
-              </PrimaryButton>
-            ) : null}
-          </>
+          value.state === 'archived' ? (
+            <>
+              {isAdmin ? (
+                <DangerButton onClick={() => onDeletePermanent(value)}>
+                  <TrashIcon className="size-3.5" />
+                  Delete permanently
+                </DangerButton>
+              ) : null}
+              <div className="flex-1" />
+              <SecondaryButton onClick={onClose}>Close</SecondaryButton>
+              {canWrite ? (
+                <PrimaryButton onClick={() => onRestore(value)}>
+                  <PlayIcon className="size-3.5" />
+                  Restore
+                </PrimaryButton>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <DangerButton onClick={() => onArchive(value)}>
+                <TrashIcon className="size-3.5" />
+                Archive
+              </DangerButton>
+              <div className="flex-1" />
+              <SecondaryButton onClick={() => checkNow.mutate()} disabled={checkNow.isPending || value.state !== 'active'}>
+                <PlayIcon className="size-3.5" />
+                {checkNow.isPending ? 'Queueing…' : 'Check now'}
+              </SecondaryButton>
+              <SecondaryButton onClick={() => onMute(value)}>
+                <PauseIcon className="size-3.5" />
+                Mute
+              </SecondaryButton>
+              {canWrite ? (
+                <PrimaryButton onClick={() => onEdit(value)}>
+                  <PencilIcon className="size-3.5" />
+                  Edit
+                </PrimaryButton>
+              ) : null}
+            </>
+          )
         ) : null
       }
     >
@@ -840,6 +1021,12 @@ function DomainDetailDialog({
       ) : null}
       {value ? (
         <div className="space-y-5">
+          {value.state === 'archived' ? (
+            <div className="rounded-md border border-line bg-surface-2/55 px-3 py-2.5 text-[11px] leading-5 text-muted">
+              <span className="font-semibold text-ink">Archived {formatDateTime(value.archived_at)}.</span> Scheduled
+              checks and expiry alerts are stopped. Restore the domain to resume them; history stays available here.
+            </div>
+          ) : null}
           <div className="grid gap-2 sm:grid-cols-3">
             <Detail label="Expiry" value={expiryLabel(value)} />
             <Detail label="State" value={titleCase(value.state)} />

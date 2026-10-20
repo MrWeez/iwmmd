@@ -99,8 +99,6 @@ function Shell({ user }: { user: User }) {
   const queryClient = useQueryClient()
   const [signingOut, setSigningOut] = useState(false)
   const page = pageDetails[pathname] ?? { title: 'Not found', detail: 'Unknown route' }
-  const connectionTone = meta.isPending ? 'neutral' : meta.isError ? 'error' : 'ok'
-  const connectionLabel = meta.isPending ? 'Checking API' : meta.isError ? 'API offline' : 'API ready'
 
   const signOut = async () => {
     setSigningOut(true)
@@ -137,26 +135,12 @@ function Shell({ user }: { user: User }) {
         </nav>
 
         <div className="border-t border-line px-3 py-3">
-          <div className="flex items-center justify-between rounded-md bg-surface-2 px-2.5 py-2">
-            <div className="flex items-center gap-2">
-              <span className="relative flex size-2">
-                <span
-                  className={`absolute inline-flex size-full rounded-full ${
-                    meta.isSuccess ? 'animate-ping bg-accent opacity-30' : 'bg-faint'
-                  }`}
-                />
-                <span
-                  className={`relative inline-flex size-2 rounded-full ${
-                    meta.isSuccess ? 'bg-accent' : meta.isError ? 'bg-danger' : 'bg-faint'
-                  }`}
-                />
-              </span>
-              <span className="text-[11px] font-medium text-muted">{connectionLabel}</span>
-            </div>
+          <div className="flex items-center justify-between px-1 pb-2">
+            <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-faint">Version</span>
             <span className="font-mono text-[10px] text-faint">{formatVersion(meta.data?.version)}</span>
           </div>
 
-          <div className="mt-3 flex items-center gap-2 rounded-md px-1 py-1">
+          <div className="mt-1 flex items-center gap-2 rounded-md px-1 py-1">
             <span className="grid size-8 shrink-0 place-items-center rounded-full bg-accent-soft font-mono text-[10px] font-semibold text-accent">
               {initials(user)}
             </span>
@@ -202,9 +186,6 @@ function Shell({ user }: { user: User }) {
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="hidden sm:block">
-                <StatusPill tone={connectionTone}>{connectionLabel}</StatusPill>
-              </div>
               <div className="lg:hidden">
                 <ThemeControl compact />
               </div>

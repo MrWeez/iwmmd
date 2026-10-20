@@ -200,6 +200,50 @@ func (s *Store) ArchiveDomain(ctx context.Context, id string, at time.Time) erro
 	return tx.Commit()
 }
 
+// RestoreDomain returns an archived domain to the active watchlist.
+func (s *Store) RestoreDomain(ctx context.Context, id string, at time.Time) error {
+	result, err := s.Writer.ExecContext(ctx, `
+		UPDATE domains SET state = 'active', archived_at = NULL, next_check_at = ?,
+			version = version + 1, updated_at = ?
+		WHERE id = ? AND state = 'archived'`, formatTime(at), formatTime(at), id)
+	if err != nil {
+		return fmt.Errorf("restore domain: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// DeleteDomainPermanent irreversibly removes an archived domain and its
+// dependent history.
+func (s *Store) DeleteDomainPermanent(ctx context.Context, id string) error {
+	tx, err := s.Writer.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(ctx, `DELETE FROM domains WHERE id = ? AND state = 'archived'`, id)
+	if err != nil {
+		return fmt.Errorf("delete domain: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return ErrNotFound
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM jobs WHERE unique_key = ?`, "domain-check:"+id); err != nil {
+		return fmt.Errorf("delete domain jobs: %w", err)
+	}
+	return tx.Commit()
+}
+
 // MuteDomain holds expiry deliveries until the given time. A nil until clears
 // the mute.
 func (s *Store) MuteDomain(ctx context.Context, id string, until *time.Time, reason string, at time.Time) error {

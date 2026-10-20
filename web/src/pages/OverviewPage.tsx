@@ -50,7 +50,7 @@ export function OverviewPage() {
   const rules = useRules()
   const channels = useChannels()
   const incidents = useIncidents({ state: 'open', limit: 5 })
-  const notifications = useNotifications({ limit: 6 })
+  const notifications = useNotifications({ limit: 6, exclude_archived: true })
 
   const refreshing =
     meta.isFetching ||
@@ -75,6 +75,12 @@ export function OverviewPage() {
     .sort((a, b) => new Date(b.last_checked_at ?? 0).getTime() - new Date(a.last_checked_at ?? 0).getTime())
     .slice(0, 6)
   const latestAlerts = (notifications.data?.items ?? []).slice(0, 5)
+  const setupComplete =
+    (meta.data?.auth_configured ?? false) &&
+    (stats.data?.active ?? 0) > 0 &&
+    (rules.data?.items.length ?? 0) > 0 &&
+    (channels.data?.items.length ?? 0) > 0
+  const showSetup = !setupComplete && !(stats.isPending || rules.isPending || channels.isPending)
 
   const error = stats.error ?? domains.error ?? rules.error ?? channels.error
 
@@ -124,7 +130,7 @@ export function OverviewPage() {
         />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,1fr)]">
+      <div className={showSetup ? 'grid gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,1fr)]' : ''}>
         <ExpiryHorizon
           domains={withExpiry.map((domain) => ({
             id: domain.id,
@@ -132,11 +138,13 @@ export function OverviewPage() {
             daysRemaining: domain.days_left ?? 0,
           }))}
         />
-        <SetupChecklist
-          domainCount={stats.data?.active ?? 0}
-          ruleCount={rules.data?.items.length ?? 0}
-          channelCount={channels.data?.items.length ?? 0}
-        />
+        {showSetup ? (
+          <SetupChecklist
+            domainCount={stats.data?.active ?? 0}
+            ruleCount={rules.data?.items.length ?? 0}
+            channelCount={channels.data?.items.length ?? 0}
+          />
+        ) : null}
       </div>
 
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,1fr)]">

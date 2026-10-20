@@ -240,7 +240,7 @@ func (s *Store) CancelPendingExpiryAll(ctx context.Context, at time.Time) error 
 }
 
 // ListNotifications returns notifications with domain and channel names.
-func (s *Store) ListNotifications(ctx context.Context, domainID, channelID, state string, limit int) ([]Notification, error) {
+func (s *Store) ListNotifications(ctx context.Context, domainID, channelID, state string, limit int, excludeArchived bool) ([]Notification, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
@@ -257,6 +257,9 @@ func (s *Store) ListNotifications(ctx context.Context, domainID, channelID, stat
 	if state != "" {
 		where = append(where, "n.state = ?")
 		args = append(args, state)
+	}
+	if excludeArchived {
+		where = append(where, "(d.id IS NULL OR d.state != 'archived')")
 	}
 	args = append(args, limit)
 	rows, err := s.Reader.QueryContext(ctx, `SELECT `+notificationColumns+`,

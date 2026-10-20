@@ -78,6 +78,207 @@ func TestOpenRawDoesNotLock(t *testing.T) {
 	}
 }
 
+func TestDomainRestoreAndPermanentDelete(t *testing.T) {
+	st := openTestStore(t)
+	ctx := context.Background()
+	now := time.Date(2026, time.October, 20, 12, 0, 0, 0, time.UTC)
+	archivedAt := now.Add(-24 * time.Hour)
+
+	const domainID = "dom_lifecycle"
+	domain := Domain{
+		ID:                   domainID,
+		NameACE:              "lifecycle.example",
+		NameUnicode:          "lifecycle.example",
+		State:                "archived",
+		InheritGlobalAlerts:  true,
+		CheckIntervalSeconds: 86400,
+		ExpiryConfidence:     "high",
+		Version:              1,
+		CreatedAt:            archivedAt,
+		UpdatedAt:            archivedAt,
+		ArchivedAt:           &archivedAt,
+	}
+	if err := st.CreateDomain(ctx, domain); err != nil {
+		t.Fatal(err)
+	}
+	at := formatTime(now)
+	if _, err := st.Writer.ExecContext(ctx, `
+		INSERT INTO domain_checks (id, domain_id, source, status, confidence, duration_ms, started_at)
+		VALUES ('check_lifecycle', ?, 'rdap', 'ok', 'high', 12, ?)`, domainID, at); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.Writer.ExecContext(ctx, `
+		INSERT INTO alert_rules (id, name, scope, domain_id, offset_value, offset_unit, direction, send_time_local, enabled, created_at, updated_at)
+		VALUES ('rule_lifecycle', 'Lifecycle rule', 'domain', ?, 30, 'days', 'before', '09:00', 1, ?, ?)`,
+		domainID, at, at); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.Writer.ExecContext(ctx, `
+		INSERT INTO incidents (id, domain_id, kind, state, opened_at, last_seen_at, details_json, created_at, updated_at)
+		VALUES ('incident_lifecycle', ?, 'check_failure', 'open', ?, ?, '{}', ?, ?)`,
+		domainID, at, at, at, at); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.EnqueueNotification(ctx, NotificationInput{
+		Kind:        "expiry",
+		DomainID:    domainID,
+		DedupeKey:   "lifecycle-notification",
+		ScheduledAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.EnqueueJob(ctx, EnqueueJobInput{
+		Kind:      "domain-check",
+		RunAt:     now,
+		UniqueKey: "domain-check:" + domainID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	restored, err := st.GetDomain(ctx, domainID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored.State != "archived" || restored.ArchivedAt == nil {
+		t.Fatalf("precondition state = %q archived_at = %v", restored.State, restored.ArchivedAt)
+	}
+
+	if err := st.RestoreDomain(ctx, domainID, now); err != nil {
+		t.Fatal(err)
+	}
+	restored, err = st.GetDomain(ctx, domainID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored.State != "active" {
+		t.Fatalf("state = %q, want active", restored.State)
+	}
+	if restored.ArchivedAt != nil {
+		t.Fatalf("archived_at = %v, want nil", restored.ArchivedAt)
+	}
+	if restored.NextCheckAt == nil || restored.NextCheckAt.Before(now) {
+		t.Fatalf("next_check_at = %v, want at or after %v", restored.NextCheckAt, now)
+	}
+	if restored.Version != 2 {
+		t.Fatalf("version = %d, want 2", restored.Version)
+	}
+
+	if err := st.DeleteDomainPermanent(ctx, domainID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("delete active domain error = %v, want ErrNotFound", err)
+	}
+	if _, err := st.GetDomain(ctx, domainID); err != nil {
+		t.Fatalf("active domain removed: %v", err)
+	}
+
+	if err := st.ArchiveDomain(ctx, domainID, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.DeleteDomainPermanent(ctx, domainID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.GetDomain(ctx, domainID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("domain still exists after permanent delete: %v", err)
+	}
+
+	for _, table := range []string{"domain_checks", "alert_rules", "incidents", "notifications"} {
+		var count int
+		if err := st.Reader.QueryRowContext(ctx, "SELECT count(*) FROM "+table+" WHERE domain_id = ?", domainID).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 0 {
+			t.Fatalf("%s rows = %d, want 0", table, count)
+		}
+	}
+	var jobs int
+	if err := st.Reader.QueryRowContext(ctx, "SELECT count(*) FROM jobs WHERE unique_key = ?", "domain-check:"+domainID).Scan(&jobs); err != nil {
+		t.Fatal(err)
+	}
+	if jobs != 0 {
+		t.Fatalf("domain-check jobs = %d, want 0", jobs)
+	}
+}
+
+func TestListNotificationsExcludeArchived(t *testing.T) {
+	st := openTestStore(t)
+	ctx := context.Background()
+	now := time.Date(2026, time.October, 20, 12, 0, 0, 0, time.UTC)
+
+	for _, item := range []struct {
+		id    string
+		state string
+	}{
+		{id: "dom_active", state: "active"},
+		{id: "dom_archived", state: "archived"},
+	} {
+		if err := st.CreateDomain(ctx, Domain{
+			ID:                   item.id,
+			NameACE:              item.id + ".example",
+			NameUnicode:          item.id + ".example",
+			State:                item.state,
+			InheritGlobalAlerts:  true,
+			CheckIntervalSeconds: 86400,
+			ExpiryConfidence:     "high",
+			Version:              1,
+			CreatedAt:            now,
+			UpdatedAt:            now,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := st.EnqueueNotification(ctx, NotificationInput{
+			Kind:        "expiry",
+			DomainID:    item.id,
+			DedupeKey:   "notification-" + item.id,
+			ScheduledAt: now,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, _, err := st.EnqueueNotification(ctx, NotificationInput{
+		Kind:        "system",
+		DedupeKey:   "notification-system",
+		ScheduledAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	all, err := st.ListNotifications(ctx, "", "", "", 50, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 3 {
+		t.Fatalf("all notifications = %d, want 3", len(all))
+	}
+	visible, err := st.ListNotifications(ctx, "", "", "", 50, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(visible) != 2 {
+		t.Fatalf("visible notifications = %d, want 2", len(visible))
+	}
+	for _, item := range visible {
+		if item.DomainID == "dom_archived" {
+			t.Fatal("archived domain notification was not excluded")
+		}
+	}
+}
+
+func openTestStore(t *testing.T) *Store {
+	t.Helper()
+	st, err := Open(Options{DataDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := st.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	if err := st.Migrate(); err != nil {
+		t.Fatal(err)
+	}
+	return st
+}
+
 func TestClaimedNotificationIsNotReactivated(t *testing.T) {
 	dir := t.TempDir()
 	st, err := Open(Options{DataDir: dir})
