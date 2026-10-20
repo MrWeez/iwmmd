@@ -1,0 +1,67 @@
+# IWMMD configuration file.
+#
+# TOML keys are general names because this file belongs to the project.
+# Environment overrides use the IWMMD_ prefix, for example:
+#   [oidc] issuer  ->  IWMMD_OIDC_ISSUER
+#
+# Precedence: environment > this file > built-in defaults.
+
+base_url = "http://localhost:8080"
+http_addr = ":8080"
+data_dir = "/data"
+
+# Optional override. The default is a WAL-enabled SQLite file under data_dir.
+# db_dsn = "file:/data/iwmmd.db?_pragma=journal_mode(WAL)"
+
+# Required. Generate with: iwmmd gen-key
+secret_key = ""
+# secret_key_file = "/run/secrets/iwmmd_key"
+
+[oidc]
+# google, microsoft, okta, auth0, gitlab, keycloak, authentik, authelia,
+# pocket-id, zitadel, or generic.
+provider = "generic"
+
+# Leave blank to run without authentication during initial setup.
+issuer = ""
+client_id = ""
+client_secret = ""
+# client_secret_file = "/run/secrets/oidc_client_secret"
+redirect_url = ""
+
+scopes = ["openid", "profile", "email", "groups"]
+groups_claim = "groups"
+email_claim = "email"
+name_claim = "name"
+
+# At least one member or admin source is required when issuer is set.
+allowed_groups = []
+allowed_email_domains = []
+allowed_emails = []
+
+# At least one admin source is required when issuer is set.
+admin_groups = []
+admin_emails = []
+
+# Only enable this when the provider marks the email claim as verified.
+trust_email_claim = false
+
+[tls]
+enabled = false
+cert_file = "/certs/fullchain.pem"
+key_file = "/certs/privkey.pem"
+port = 8443
+http_redirect = true
+hsts_max_age = "31536000s"
+
+[proxy]
+# CIDRs or IP addresses of reverse proxies that may supply forwarded headers.
+trusted_proxies = []
+
+[log]
+level = "info"
+format = "json"
+
+[metrics]
+# Optional private listener. Empty disables the separate metrics server.
+addr = ""

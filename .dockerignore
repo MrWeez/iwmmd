@@ -1,0 +1,16 @@
+.git
+.gitignore
+.github
+.env
+.env.*
+!.env.example
+config.toml
+data
+bin
+coverage.out
+web/node_modules
+web/dist
+web/.vite
+internal/webui/dist
+README.md
+ARCHITECTURE.md

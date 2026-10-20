@@ -1,0 +1,17 @@
+name: iwmmd
+
+services:
+  iwmmd:
+    extends:
+      file: compose.yaml
+      service: iwmmd
+    image: iwmmd:local
+    build:
+      context: .
+      args:
+        VERSION: ${IWMMD_VERSION:-dev}
+        COMMIT: ${IWMMD_COMMIT:-none}
+        BUILD_DATE: ${IWMMD_BUILD_DATE:-unknown}
+
+volumes:
+  iwmmd-data:

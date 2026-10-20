@@ -1,0 +1,29 @@
+# Runtime data
+/data/
+*.db
+*.db-wal
+*.db-shm
+
+# Local configuration and secrets
+/.env
+/config.toml
+
+# Go build output
+/bin/
+/iwmmd
+/coverage.out
+
+# Frontend dependencies and local build output
+/web/node_modules/
+/web/dist/
+/web/.vite/
+
+# Embedded frontend build output, except the placeholder that keeps dist present
+/internal/webui/dist/*
+!/internal/webui/dist/.gitkeep
+
+# Editors and OS files
+.DS_Store
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,122 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --font-sans: 'Instrument Sans Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-signal: var(--signal);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+}
+
+:root {
+  color-scheme: light;
+  --canvas: #e9eef0;
+  --surface: #f8faf9;
+  --surface-2: #eef3f3;
+  --ink: #10212b;
+  --muted: #5a6f79;
+  --faint: #84959c;
+  --line: #cbd8db;
+  --line-strong: #a9bcc2;
+  --accent: #0b6e69;
+  --accent-soft: #d4ece8;
+  --signal: #b45309;
+  --danger: #b42318;
+  --success: #15803d;
+}
+
+.dark {
+  color-scheme: dark;
+  --canvas: #071219;
+  --surface: #0d1d25;
+  --surface-2: #112731;
+  --ink: #e3eef0;
+  --muted: #8ea6ae;
+  --faint: #6e8790;
+  --line: #1f3943;
+  --line-strong: #31515c;
+  --accent: #5eead4;
+  --accent-soft: #123b3a;
+  --signal: #fbbf24;
+  --danger: #f97066;
+  --success: #4ade80;
+}
+
+@layer base {
+  html {
+    background: var(--canvas);
+    font-family: var(--font-sans);
+    font-optical-sizing: auto;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    min-width: 320px;
+    background: var(--canvas);
+    color: var(--ink);
+  }
+
+  #root {
+    min-height: 100dvh;
+  }
+
+  ::selection {
+    background: var(--accent-soft);
+    color: var(--ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+}
+
+@layer utilities {
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .horizon-grid {
+    background-image: linear-gradient(to right, var(--line) 1px, transparent 1px);
+    background-size: calc(100% / 6) 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
