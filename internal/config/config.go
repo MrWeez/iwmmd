@@ -35,6 +35,7 @@ type Config struct {
 	Proxy         Proxy   `toml:"proxy"`
 	Log           Log     `toml:"log"`
 	Metrics       Metrics `toml:"metrics"`
+	Demo          Demo    `toml:"demo"`
 
 	// ConfigPath is the file that was loaded, or empty when defaults and
 	// environment variables were used.
@@ -89,6 +90,13 @@ type Metrics struct {
 	Addr string `toml:"addr"`
 }
 
+// Demo controls the disposable public demo mode.
+type Demo struct {
+	Enabled       bool   `toml:"enabled"`
+	Role          string `toml:"role"`
+	ResetInterval string `toml:"reset_interval"`
+}
+
 // Default returns the built-in configuration.
 func Default() Config {
 	return Config{
@@ -110,6 +118,10 @@ func Default() Config {
 		Log: Log{
 			Level:  "info",
 			Format: "json",
+		},
+		Demo: Demo{
+			Role:          "member",
+			ResetInterval: "30m",
 		},
 	}
 }
@@ -199,7 +211,7 @@ func (c *Config) Validate() error {
 	default:
 		return fmt.Errorf("log.format must be json or text, got %q", c.Log.Format)
 	}
-	if c.OIDC.Issuer != "" {
+	if !c.Demo.Enabled && c.OIDC.Issuer != "" {
 		issuer, err := url.Parse(c.OIDC.Issuer)
 		if err != nil || issuer.Host == "" || (issuer.Scheme != "https" && issuer.Scheme != "http") {
 			return fmt.Errorf("oidc.issuer must be an absolute http(s) URL, got %q", c.OIDC.Issuer)
@@ -223,6 +235,20 @@ func (c *Config) Validate() error {
 		}
 		if len(c.OIDC.AdminGroups) == 0 && len(c.OIDC.AdminEmails) == 0 {
 			return errors.New("oidc requires at least one admin source: admin_groups or admin_emails")
+		}
+	}
+	if c.Demo.Enabled {
+		switch c.Demo.Role {
+		case "member", "admin":
+		default:
+			return fmt.Errorf("demo.role must be member or admin, got %q", c.Demo.Role)
+		}
+		interval, err := time.ParseDuration(c.Demo.ResetInterval)
+		if err != nil {
+			return fmt.Errorf("demo.reset_interval: %w", err)
+		}
+		if interval < time.Minute {
+			return errors.New("demo.reset_interval must be at least 1m")
 		}
 	}
 	if c.Metrics.Addr != "" {
@@ -289,6 +315,13 @@ func normalize(cfg *Config) {
 	}
 	if cfg.OIDC.NameClaim == "" {
 		cfg.OIDC.NameClaim = "name"
+	}
+	cfg.Demo.Role = strings.ToLower(strings.TrimSpace(cfg.Demo.Role))
+	if cfg.Demo.Role == "" {
+		cfg.Demo.Role = "member"
+	}
+	if cfg.Demo.ResetInterval == "" {
+		cfg.Demo.ResetInterval = "30m"
 	}
 }
 
@@ -389,6 +422,10 @@ func applyEnv(cfg *Config) error {
 	setString("IWMMD_LOG_LEVEL", &cfg.Log.Level)
 	setString("IWMMD_LOG_FORMAT", &cfg.Log.Format)
 	setString("IWMMD_METRICS_ADDR", &cfg.Metrics.Addr)
+
+	setBool("IWMMD_DEMO_MODE", &cfg.Demo.Enabled)
+	setString("IWMMD_DEMO_ROLE", &cfg.Demo.Role)
+	setString("IWMMD_DEMO_RESET_INTERVAL", &cfg.Demo.ResetInterval)
 
 	return errors.Join(errs...)
 }

@@ -12,7 +12,6 @@ import (
 
 	"github.com/mrweez/iwmmd/internal/alert"
 	"github.com/mrweez/iwmmd/internal/calendar"
-	"github.com/mrweez/iwmmd/internal/checker"
 	"github.com/mrweez/iwmmd/internal/checker/model"
 	"github.com/mrweez/iwmmd/internal/platform/ids"
 	"github.com/mrweez/iwmmd/internal/settings"
@@ -26,10 +25,15 @@ var (
 	ErrInvalidState = errors.New("invalid domain state")
 )
 
+// Checker performs one domain lookup.
+type Checker interface {
+	Check(ctx context.Context, name string) model.Result
+}
+
 // Service owns domain lifecycle and check persistence.
 type Service struct {
 	Store    *store.Store
-	Checker  *checker.Service
+	Checker  Checker
 	Settings *settings.Service
 	Alerts   *alert.Engine
 	Logger   *slog.Logger

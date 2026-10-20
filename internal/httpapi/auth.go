@@ -13,6 +13,13 @@ import (
 )
 
 func (a *API) me(w http.ResponseWriter, r *http.Request) {
+	if a.deps.Demo != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"user":       toUserDTO(a.deps.Demo.User),
+			"csrf_token": a.deps.Demo.CSRF,
+		})
+		return
+	}
 	if a.deps.Sessions == nil || a.deps.OIDC == nil {
 		writeProblem(w, http.StatusServiceUnavailable, "Authentication is not configured",
 			"Configure OIDC before signing in.")
@@ -34,6 +41,10 @@ func (a *API) me(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) login(w http.ResponseWriter, r *http.Request) {
+	if a.deps.Demo != nil {
+		http.Redirect(w, r, safeReturnTo(r.URL.Query().Get("next")), http.StatusFound)
+		return
+	}
 	if a.deps.OIDC == nil || a.deps.Sessions == nil {
 		writeProblem(w, http.StatusServiceUnavailable, "Authentication is not configured",
 			"Set the OIDC issuer, client ID, client secret, and redirect URL before signing in.")
@@ -53,6 +64,10 @@ func (a *API) login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) callback(w http.ResponseWriter, r *http.Request) {
+	if a.deps.Demo != nil {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
 	if a.deps.OIDC == nil || a.deps.Sessions == nil {
 		writeProblem(w, http.StatusServiceUnavailable, "Authentication is not configured",
 			"OIDC is not configured.")
@@ -103,6 +118,10 @@ func (a *API) callback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) logout(w http.ResponseWriter, r *http.Request) {
+	if a.deps.Demo != nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	user, _ := userFrom(r.Context())
 	if err := a.deps.Sessions.Logout(r.Context(), w, r, now()); err != nil {
 		writeProblem(w, http.StatusInternalServerError, "Logout failed", "The session could not be revoked.")

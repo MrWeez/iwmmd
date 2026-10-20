@@ -242,6 +242,9 @@ The advanced part is not distributed infrastructure. It is durable job state, id
   client.go              port 43 client
   parser.go              generic and registry-specific parsing
 
+/internal/demo
+  demo.go                demo seed, reset loop, anonymous identity
+
 /internal/alert
   rules.go               rule validation
   evaluator.go           due offset calculation
@@ -1330,6 +1333,25 @@ IWMMD_OIDC_ADMIN_EMAILS=admin@example.com
 IWMMD_OIDC_TRUST_EMAIL_CLAIM=false
 ```
 
+### 10.7 Public demo mode
+
+Demo mode is an explicit, opt-in deployment profile for a public interactive demo. It is not part of the normal OIDC path.
+
+- `IWMMD_DEMO_MODE=true` enables anonymous read-write requests.
+- The request identity is a seeded user with `member` or `admin` role.
+- OIDC discovery and login are skipped while demo mode is enabled.
+- The database must be empty on first start or contain the `demo.marker` setting. Demo mode refuses a non-empty production database.
+- A background loop replaces all demo content on `IWMMD_DEMO_RESET_INTERVAL`.
+- Domain checks use a deterministic in-process checker. The notification sender returns success without opening SMTP or HTTP connections.
+- CSRF tokens are still required for mutations.
+- The reverse proxy should enforce TLS, request limits, and rate limits.
+
+```text
+IWMMD_DEMO_MODE=true
+IWMMD_DEMO_ROLE=member
+IWMMD_DEMO_RESET_INTERVAL=30m
+```
+
 ---
 
 ## 11. Security
@@ -1791,6 +1813,9 @@ Environment names are flat, uppercase, and prefixed with `IWMMD_`.
 | `IWMMD_LOG_LEVEL` | Log level |
 | `IWMMD_LOG_FORMAT` | `json` or `text` |
 | `IWMMD_METRICS_ADDR` | Optional private metrics listener |
+| `IWMMD_DEMO_MODE` | Enable anonymous disposable demo mode |
+| `IWMMD_DEMO_ROLE` | Demo role: `member` or `admin` |
+| `IWMMD_DEMO_RESET_INTERVAL` | Demo reset interval, minimum `1m` |
 
 ### 14.4 Environment to TOML mapping
 

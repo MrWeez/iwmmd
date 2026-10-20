@@ -2,7 +2,7 @@ import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState, type ComponentType, type SVGProps } from 'react'
 import { api, setCSRFToken, useMe, useMeta, type User } from '../lib/api'
-import { formatVersion, titleCase } from '../lib/format'
+import { formatDateTime, formatVersion, titleCase } from '../lib/format'
 import { ThemeControl } from './ThemeControl'
 import { Banner, Spinner, StatusPill } from './ui'
 import {
@@ -98,6 +98,7 @@ function Shell({ user }: { user: User }) {
   const meta = useMeta()
   const queryClient = useQueryClient()
   const [signingOut, setSigningOut] = useState(false)
+  const demoMode = meta.data?.demo_mode === true
   const page = pageDetails[pathname] ?? { title: 'Not found', detail: 'Unknown route' }
 
   const signOut = async () => {
@@ -150,16 +151,22 @@ function Shell({ user }: { user: User }) {
               </p>
               <p className="truncate text-[10px] text-faint">{titleCase(user.role)}</p>
             </div>
-            <button
-              type="button"
-              onClick={() => void signOut()}
-              disabled={signingOut}
-              className="grid size-7 place-items-center rounded-md text-faint transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-40"
-              aria-label="Sign out"
-              title="Sign out"
-            >
-              <LogOutIcon className="size-3.5" />
-            </button>
+            {demoMode ? (
+              <StatusPill tone="warn" dot={false}>
+                Demo
+              </StatusPill>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void signOut()}
+                disabled={signingOut}
+                className="grid size-7 place-items-center rounded-md text-faint transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-40"
+                aria-label="Sign out"
+                title="Sign out"
+              >
+                <LogOutIcon className="size-3.5" />
+              </button>
+            )}
           </div>
 
           <div className="mt-3 flex items-center justify-between gap-3 px-0.5">
@@ -207,6 +214,14 @@ function Shell({ user }: { user: User }) {
         </header>
 
         <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+          {demoMode ? (
+            <div className="mb-5">
+              <Banner tone="warn" title="Public demo">
+                Mock data resets automatically at {formatDateTime(meta.data?.demo_reset_at, 'the next cycle')}.
+                Changes are shared by everyone using this demo and are temporary. Checks and notifications are simulated.
+              </Banner>
+            </div>
+          ) : null}
           <Outlet />
         </main>
       </div>

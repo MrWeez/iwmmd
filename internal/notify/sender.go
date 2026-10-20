@@ -27,6 +27,7 @@ type Sender struct {
 	Store    *store.Store
 	Settings *settings.Service
 	Box      *secrets.Box
+	Demo     bool
 }
 
 // DecryptChannel returns the typed configuration for a channel.
@@ -40,6 +41,9 @@ func (s *Sender) DecryptChannel(channel store.Channel) (any, error) {
 
 // Send performs one delivery and returns an HTTP-like status code.
 func (s *Sender) Send(ctx context.Context, channel store.Channel, payload alert.Payload, notificationID string) (int, error) {
+	if s.Demo {
+		return 202, nil
+	}
 	cfg, err := s.DecryptChannel(channel)
 	if err != nil {
 		return 0, &DeliveryError{Retryable: false, Err: err}

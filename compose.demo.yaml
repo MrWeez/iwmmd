@@ -1,0 +1,13 @@
+name: iwmmd-demo
+
+services:
+  iwmmd:
+    environment:
+      IWMMD_DEMO_MODE: "true"
+      IWMMD_DEMO_ROLE: ${IWMMD_DEMO_ROLE:-member}
+      IWMMD_DEMO_RESET_INTERVAL: ${IWMMD_DEMO_RESET_INTERVAL:-30m}
+    volumes:
+      - iwmmd-demo-data:/data
+
+volumes:
+  iwmmd-demo-data:

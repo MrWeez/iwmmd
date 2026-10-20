@@ -14,6 +14,7 @@ import (
 	"github.com/mrweez/iwmmd/internal/alert"
 	"github.com/mrweez/iwmmd/internal/auth"
 	"github.com/mrweez/iwmmd/internal/config"
+	"github.com/mrweez/iwmmd/internal/demo"
 	"github.com/mrweez/iwmmd/internal/domain"
 	"github.com/mrweez/iwmmd/internal/notify"
 	"github.com/mrweez/iwmmd/internal/platform/metrics"
@@ -35,6 +36,7 @@ type Deps struct {
 	Alerts   *alert.Engine
 	Channels *notify.ChannelService
 	Settings *settings.Service
+	Demo     *demo.State
 }
 
 // API holds handlers.
@@ -160,16 +162,29 @@ func NewRouter(deps Deps) http.Handler {
 func (a *API) meta(w http.ResponseWriter, r *http.Request) {
 	provider := a.deps.Config.OIDC.Provider
 	issuer := a.deps.Config.OIDC.Issuer
-	writeJSON(w, http.StatusOK, map[string]any{
+	demoMode := a.deps.Demo != nil
+	if demoMode {
+		provider = "demo"
+		issuer = ""
+	}
+	payload := map[string]any{
 		"version":          version.Version,
 		"commit":           version.Commit,
 		"date":             version.Date,
-		"auth_configured":  a.deps.OIDC != nil,
+		"auth_configured":  a.deps.OIDC != nil || demoMode,
 		"provider":         provider,
 		"issuer":           issuer,
 		"tls_enabled":      a.deps.Config.TLS.Enabled,
 		"provider_presets": auth.Presets(),
-	})
+		"demo_mode":        demoMode,
+	}
+	if demoMode {
+		if next := a.deps.Demo.NextReset(); !next.IsZero() {
+			payload["demo_reset_at"] = next.Format(time.RFC3339)
+		}
+		payload["demo_reset_interval_seconds"] = int64(a.deps.Demo.ResetInterval.Seconds())
+	}
+	writeJSON(w, http.StatusOK, payload)
 }
 
 func securityHeaders(cfg *config.Config) func(http.Handler) http.Handler {

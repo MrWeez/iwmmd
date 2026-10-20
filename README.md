@@ -14,6 +14,7 @@ The stack is a Go modular monolith, SQLite with WAL, and a React + Vite single-p
 - Durable SQLite job queue and notification outbox with retries.
 - Email (SMTP), generic webhook, Discord, and Telegram delivery.
 - OIDC authorization-code login with PKCE and server-side sessions.
+- Opt-in public demo mode with disposable mock data and anonymous read-write access.
 - Role-based access: viewer, member, and admin.
 - Audit log, incident history, check history, and delivery attempts.
 - Dark and light themes, built-in TLS, or reverse-proxy deployment.
@@ -34,7 +35,7 @@ $EDITOR .env
 docker compose up -d
 ```
 
-Open <http://localhost:8080>. OIDC is the only authentication method, so the instance is unusable until the provider settings are complete.
+Open <http://localhost:8080>. OIDC is the only authentication method for normal deployments, so the instance is unusable until the provider settings are complete. A separate public demo mode is available for disposable mock data.
 
 The Compose file binds the host port to `127.0.0.1` by default. Set `IWMMD_BIND_ADDR=0.0.0.0` only when a reverse proxy or firewall protects the port.
 
@@ -48,7 +49,7 @@ Health endpoints:
 Each release includes statically linked Linux binaries for `amd64` and `arm64`, as raw executables and tar archives. Download the matching archive and `checksums.txt` from the release page:
 
 ```sh
-VERSION=1.2.0
+VERSION=1.3.0
 ARCH=amd64
 curl -LO "https://github.com/MrWeez/iwmmd/releases/download/v${VERSION}/iwmmd_${VERSION}_linux_${ARCH}.tar.gz"
 curl -LO "https://github.com/MrWeez/iwmmd/releases/download/v${VERSION}/checksums.txt"
@@ -123,6 +124,29 @@ IWMMD_OIDC_ADMIN_GROUPS=iwmmd-admins
 Provider presets are available for Google, Microsoft Entra, Okta, Auth0, GitLab, Keycloak, Authentik, Authelia, Pocket ID, Zitadel, and generic OIDC. GitHub is excluded because it is OAuth 2.0, not OIDC.
 
 Authorization is evaluated in this order: claims and groups, then a verified email domain, then an explicit email. Admin access requires an admin group or an explicit admin email. Existing users can have their role changed in the web UI. Environment and TOML changes require a restart.
+
+### Public demo mode
+
+Demo mode runs an anonymous, read-write instance with disposable mock data. It is intended for a separate public deployment, never for a real data directory.
+
+```sh
+IWMMD_DEMO_MODE=true
+IWMMD_DEMO_ROLE=member
+IWMMD_DEMO_RESET_INTERVAL=30m
+```
+
+With Compose, use the demo overlay. It keeps a separate data volume:
+
+```sh
+docker compose -f compose.yaml -f compose.demo.yaml up -d
+```
+
+- `member` allows domain and rule changes. `admin` also enables settings, channels, users, audit, and jobs.
+- Anonymous requests use a seeded demo identity. OIDC is ignored while demo mode is enabled.
+- Domain checks return deterministic mock results. SMTP, webhook, Discord, Telegram, and test sends are stubbed and never leave the process.
+- All content is replaced on the reset interval. A `demo.marker` row in SQLite identifies the database as disposable.
+- On first start, demo mode refuses a data directory that already contains data. Use a separate empty data directory or volume.
+- Put a reverse proxy in front for TLS and rate limiting. Do not expose the Go server directly to the internet.
 
 ### Built-in TLS
 

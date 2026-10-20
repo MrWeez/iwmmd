@@ -77,6 +77,10 @@ func (a *API) testSMTP(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &input) {
 		return
 	}
+	if a.deps.Demo != nil {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "sent"})
+		return
+	}
 	snap, err := a.deps.Settings.Get(r.Context())
 	if err != nil {
 		writeServiceError(w, err)

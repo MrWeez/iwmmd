@@ -9,6 +9,9 @@ export type Meta = {
   issuer?: string
   tls_enabled: boolean
   provider_presets?: ProviderPreset[]
+  demo_mode?: boolean
+  demo_reset_at?: string
+  demo_reset_interval_seconds?: number
 }
 
 export type ProviderPreset = {

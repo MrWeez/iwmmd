@@ -18,6 +18,7 @@ import (
 	"github.com/mrweez/iwmmd/internal/auth"
 	"github.com/mrweez/iwmmd/internal/checker"
 	"github.com/mrweez/iwmmd/internal/config"
+	"github.com/mrweez/iwmmd/internal/demo"
 	"github.com/mrweez/iwmmd/internal/domain"
 	"github.com/mrweez/iwmmd/internal/httpapi"
 	"github.com/mrweez/iwmmd/internal/jobs"
@@ -41,6 +42,7 @@ type App struct {
 	settings   *settings.Service
 	worker     *jobs.Worker
 	dispatcher *notify.Dispatcher
+	demo       *demo.Seeder
 
 	httpServer     *http.Server
 	redirectServer *http.Server
@@ -70,17 +72,38 @@ func New(cfg *config.Config, logger *slog.Logger) (*App, error) {
 	}
 	settingsSvc := settings.New(st, box)
 	alertEngine := &alert.Engine{Store: st, Settings: settingsSvc, BaseURL: cfg.BaseURL, Logger: logger}
-	checkerSvc := checker.New(cfg.DataDir)
-	domainSvc := &domain.Service{
-		Store: st, Checker: checkerSvc, Settings: settingsSvc, Alerts: alertEngine, Logger: logger,
+
+	var lookup domain.Checker = checker.New(cfg.DataDir)
+	var demoState *demo.State
+	var demoSeeder *demo.Seeder
+	if cfg.Demo.Enabled {
+		interval, err := time.ParseDuration(cfg.Demo.ResetInterval)
+		if err != nil {
+			_ = st.Close()
+			return nil, fmt.Errorf("parse demo reset interval: %w", err)
+		}
+		demoState = demo.NewState(cfg.Demo.Role, interval)
+		demoSeeder = demo.NewSeeder(st, box, demoState, logger)
+		lookup = checker.Demo{}
+		if err := demoSeeder.Initialize(context.Background(), time.Now().UTC()); err != nil {
+			_ = st.Close()
+			return nil, fmt.Errorf("initialize demo data: %w", err)
+		}
 	}
-	sender := &notify.Sender{Store: st, Settings: settingsSvc, Box: box}
+
+	domainSvc := &domain.Service{
+		Store: st, Checker: lookup, Settings: settingsSvc, Alerts: alertEngine, Logger: logger,
+	}
+	sender := &notify.Sender{Store: st, Settings: settingsSvc, Box: box, Demo: cfg.Demo.Enabled}
 	channelSvc := &notify.ChannelService{Store: st, Box: box, Sender: sender}
 
-	oidcClient, err := auth.NewOIDC(context.Background(), cfg.OIDC)
-	if err != nil {
-		_ = st.Close()
-		return nil, err
+	var oidcClient *auth.OIDC
+	if !cfg.Demo.Enabled {
+		oidcClient, err = auth.NewOIDC(context.Background(), cfg.OIDC)
+		if err != nil {
+			_ = st.Close()
+			return nil, err
+		}
 	}
 	base, err := url.Parse(cfg.BaseURL)
 	if err != nil {
@@ -101,6 +124,7 @@ func New(cfg *config.Config, logger *slog.Logger) (*App, error) {
 		Alerts:   alertEngine,
 		Channels: channelSvc,
 		Settings: settingsSvc,
+		Demo:     demoState,
 	})
 
 	a := &App{
@@ -108,6 +132,7 @@ func New(cfg *config.Config, logger *slog.Logger) (*App, error) {
 		domains: domainSvc, alerts: alertEngine, channels: channelSvc, settings: settingsSvc,
 		worker:     &jobs.Worker{Store: st, Domains: domainSvc, Logger: logger, Concurrency: 4, Interval: 30 * time.Second},
 		dispatcher: &notify.Dispatcher{Store: st, Sender: sender, Settings: settingsSvc, Logger: logger, Interval: 5 * time.Second, Batch: 10},
+		demo:       demoSeeder,
 	}
 	a.httpServer = newHTTPServer("", router, logger)
 	if cfg.TLS.Enabled {
@@ -157,17 +182,23 @@ func (a *App) Run(ctx context.Context) error {
 		"tls", a.cfg.TLS.Enabled,
 		"metrics_addr", a.cfg.Metrics.Addr,
 	)
-	if a.cfg.OIDC.Issuer == "" {
+	if a.demo != nil {
+		a.logger.Warn("DEMO MODE ENABLED: anonymous read-write access with disposable mock data",
+			"role", a.cfg.Demo.Role, "reset_interval", a.cfg.Demo.ResetInterval)
+		go a.demo.Run(runCtx)
+	} else if a.cfg.OIDC.Issuer == "" {
 		a.logger.Warn("OIDC is not configured; authenticated API access is unavailable")
 	}
 
 	go a.worker.Run(runCtx)
 	go a.dispatcher.Run(runCtx)
-	go func() {
-		if err := a.alerts.GenerateAll(runCtx, time.Now().UTC()); err != nil && !errors.Is(err, context.Canceled) {
-			a.logger.Error("generate initial alerts", "error", err)
-		}
-	}()
+	if a.demo == nil {
+		go func() {
+			if err := a.alerts.GenerateAll(runCtx, time.Now().UTC()); err != nil && !errors.Is(err, context.Canceled) {
+				a.logger.Error("generate initial alerts", "error", err)
+			}
+		}()
+	}
 
 	errCh := make(chan error, 3)
 	if a.metricsServer != nil {

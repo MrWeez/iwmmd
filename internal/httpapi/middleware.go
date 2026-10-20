@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"crypto/subtle"
 	"net/http"
 	"strings"
 
@@ -18,6 +19,12 @@ const (
 
 func (a *API) authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if a.deps.Demo != nil {
+			ctx := context.WithValue(r.Context(), userContextKey, a.deps.Demo.User)
+			ctx = context.WithValue(ctx, csrfContextKey, a.deps.Demo.CSRF)
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
 		if a.deps.Sessions == nil || a.deps.OIDC == nil {
 			writeProblem(w, http.StatusServiceUnavailable, "Authentication is not configured",
 				"Configure OIDC before using the application.")
@@ -59,6 +66,14 @@ func (a *API) csrf(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
+			next.ServeHTTP(w, r)
+			return
+		}
+		if a.deps.Demo != nil {
+			if subtle.ConstantTimeCompare([]byte(r.Header.Get("X-CSRF-Token")), []byte(a.deps.Demo.CSRF)) != 1 {
+				writeProblem(w, http.StatusForbidden, "CSRF validation failed", "Refresh the page and try again.")
+				return
+			}
 			next.ServeHTTP(w, r)
 			return
 		}

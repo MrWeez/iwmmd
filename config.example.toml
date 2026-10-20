@@ -65,3 +65,11 @@ format = "json"
 [metrics]
 # Optional private listener. Empty disables the separate metrics server.
 addr = ""
+
+[demo]
+# Public, anonymous, read-write demo with disposable mock data.
+# Use a separate empty data directory. Never enable this on real data.
+# Domain lookups and outbound notifications are stubbed in demo mode.
+enabled = false
+role = "member" # member or admin
+reset_interval = "30m"

@@ -44,6 +44,9 @@ var envKeys = []string{
 	"IWMMD_LOG_LEVEL",
 	"IWMMD_LOG_FORMAT",
 	"IWMMD_METRICS_ADDR",
+	"IWMMD_DEMO_MODE",
+	"IWMMD_DEMO_ROLE",
+	"IWMMD_DEMO_RESET_INTERVAL",
 }
 
 func testKey() string {
@@ -256,5 +259,53 @@ func TestLoadRejectsInvalidTrustedProxy(t *testing.T) {
 	_, err := Load(emptyConfig(t))
 	if err == nil || !strings.Contains(err.Error(), "proxy.trusted_proxies") {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestLoadDemoMode(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("IWMMD_SECRET_KEY", testKey())
+	t.Setenv("IWMMD_DEMO_MODE", "true")
+	t.Setenv("IWMMD_DEMO_ROLE", " Admin ")
+	t.Setenv("IWMMD_DEMO_RESET_INTERVAL", "15m")
+
+	cfg, err := Load(emptyConfig(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Demo.Enabled || cfg.Demo.Role != "admin" || cfg.Demo.ResetInterval != "15m" {
+		t.Fatalf("demo = %+v", cfg.Demo)
+	}
+}
+
+func TestValidateDemoMode(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		role   string
+		reset  string
+		errBit string
+	}{
+		{name: "bad role", role: "viewer", reset: "30m", errBit: "demo.role"},
+		{name: "bad interval", role: "member", reset: "soon", errBit: "demo.reset_interval"},
+		{name: "too short", role: "member", reset: "30s", errBit: "at least 1m"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := Default()
+			cfg.MasterKey = make([]byte, secretKeyBytes)
+			cfg.Demo = Demo{Enabled: true, Role: tc.role, ResetInterval: tc.reset}
+			if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), tc.errBit) {
+				t.Fatalf("error = %v", err)
+			}
+		})
+	}
+}
+
+func TestValidateDemoSkipsOIDC(t *testing.T) {
+	cfg := Default()
+	cfg.MasterKey = make([]byte, secretKeyBytes)
+	cfg.Demo = Demo{Enabled: true, Role: "member", ResetInterval: "30m"}
+	cfg.OIDC.Issuer = "not a URL"
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("demo mode should ignore OIDC settings: %v", err)
 	}
 }

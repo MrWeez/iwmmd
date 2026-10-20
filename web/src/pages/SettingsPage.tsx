@@ -64,6 +64,7 @@ export function SettingsPage() {
 
   const activeTab: Tab = isAdmin ? tab : 'runtime'
   const authConfigured = meta.data?.auth_configured ?? false
+  const demoMode = meta.data?.demo_mode ?? false
   const tlsEnabled = meta.data?.tls_enabled ?? false
 
   return (
@@ -73,7 +74,7 @@ export function SettingsPage() {
         description="Runtime delivery, scheduling, and access controls for this instance."
         actions={
           <StatusPill tone={isAdmin ? 'ok' : 'neutral'} dot={false}>
-            {isAdmin ? 'Administrator' : 'Read only'}
+            {isAdmin ? 'Administrator' : me.data?.user?.role === 'member' ? 'Member' : 'Read only'}
           </StatusPill>
         }
       />
@@ -88,12 +89,16 @@ export function SettingsPage() {
         <dl>
           <DefinitionRow label="Authentication">
             <div className="flex flex-wrap items-center gap-2">
-              <StatusPill tone={authConfigured ? 'ok' : 'warn'}>
-                {authConfigured ? 'OIDC configured' : 'OIDC not configured'}
+              <StatusPill tone={demoMode ? 'warn' : authConfigured ? 'ok' : 'warn'}>
+                {demoMode ? 'Demo mode' : authConfigured ? 'OIDC configured' : 'OIDC not configured'}
               </StatusPill>
               <span className="text-[11px] text-muted">
-                {meta.data?.provider ? titleCase(meta.data.provider) : 'No provider preset'}
-                {meta.data?.issuer ? ` · ${meta.data.issuer}` : ''}
+                {demoMode
+                  ? 'Anonymous read-write access · disposable mock data'
+                  : meta.data?.provider
+                    ? titleCase(meta.data.provider)
+                    : 'No provider preset'}
+                {!demoMode && meta.data?.issuer ? ` · ${meta.data.issuer}` : ''}
               </span>
             </div>
           </DefinitionRow>
