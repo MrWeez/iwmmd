@@ -1779,7 +1779,7 @@ Environment names are flat, uppercase, and prefixed with `IWMMD_`.
 | `IWMMD_OIDC_ALLOWED_EMAILS` | Explicit emails granted member |
 | `IWMMD_OIDC_ADMIN_EMAILS` | Explicit admin emails |
 | `IWMMD_OIDC_TRUST_EMAIL_CLAIM` | Trust email without verified flag |
-| `IWMMD_TRUSTED_PROXIES` | CIDRs allowed to set forwarded headers |
+| `IWMMD_TRUSTED_PROXIES` | CIDRs or IPs allowed to set forwarded headers |
 | `IWMMD_TLS_ENABLED` | Enable built-in TLS |
 | `IWMMD_TLS_CERT_FILE` | TLS certificate chain |
 | `IWMMD_TLS_KEY_FILE` | TLS private key |
@@ -1909,7 +1909,10 @@ IWMMD_TRUSTED_PROXIES=10.0.0.0/8,172.16.0.0/12
 Behavior:
 
 - Proxy terminates TLS.
-- App trusts forwarded headers only from configured proxies.
+- App trusts `X-Forwarded-For` and `X-Real-IP` only from configured proxies.
+- `X-Forwarded-For` is read from the proxy side, so spoofed leftmost values are ignored.
+- Audit, session, and request-log addresses use the resolved client IP.
+- Keep trusted proxies narrow. A broad private range trusts every peer inside it.
 - Secure cookies still derived from HTTPS base URL.
 - HSTS can be set by proxy or app.
 - Proxy must preserve host and scheme.

@@ -50,9 +50,15 @@ func NewRouter(deps Deps) http.Handler {
 	}
 	api := &API{deps: deps}
 
+	trustedProxies, err := config.ParseTrustedProxies(deps.Config.Proxy.TrustedProxies)
+	if err != nil {
+		logger.Warn("ignoring invalid trusted proxies", "error", err)
+	}
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.CleanPath)
+	r.Use(realIP(trustedProxies))
 	r.Use(accessLog(logger))
 	if deps.Metrics != nil {
 		r.Use(deps.Metrics.Middleware)

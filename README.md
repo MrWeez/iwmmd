@@ -48,7 +48,7 @@ Health endpoints:
 Each release includes statically linked Linux binaries for `amd64` and `arm64`, as raw executables and tar archives. Download the matching archive and `checksums.txt` from the release page:
 
 ```sh
-VERSION=1.1.1
+VERSION=1.1.2
 ARCH=amd64
 curl -LO "https://github.com/MrWeez/iwmmd/releases/download/v${VERSION}/iwmmd_${VERSION}_linux_${ARCH}.tar.gz"
 curl -LO "https://github.com/MrWeez/iwmmd/releases/download/v${VERSION}/checksums.txt"
@@ -134,6 +134,17 @@ If you enable TLS in Compose, remove or override the image healthcheck because i
 healthcheck:
   test: ["CMD", "/iwmmd", "healthcheck", "--url", "https://127.0.0.1:8443/healthz", "--insecure"]
 ```
+
+### Reverse proxy
+
+Set `IWMMD_TRUSTED_PROXIES` to the IPs or CIDRs of the proxies that connect to IWMMD. The app reads `X-Forwarded-For` and `X-Real-IP` only when the immediate peer matches that list.
+
+```env
+# Docker host gateway, common when the proxy runs on the host
+IWMMD_TRUSTED_PROXIES=172.25.0.1/32
+```
+
+Use the proxy container address or Docker network CIDR when the proxy runs in the same Compose network. Prefer a single address or the narrowest possible range. Audit logs, sessions, and request logs use the resolved client address.
 
 ### TOML file with Compose
 

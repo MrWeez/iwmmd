@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"encoding/base64"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -225,5 +226,35 @@ func TestValidateTLSRequiresHTTPS(t *testing.T) {
 	t.Setenv("IWMMD_TLS_KEY_FILE", "/tmp/key.pem")
 	if _, err := Load(emptyConfig(t)); err == nil || !strings.Contains(err.Error(), "https") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestParseTrustedProxies(t *testing.T) {
+	nets, err := ParseTrustedProxies([]string{"10.0.0.0/8", "192.0.2.10", "2001:db8::1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nets) != 3 {
+		t.Fatalf("networks = %d, want 3", len(nets))
+	}
+	if !nets[0].Contains(net.ParseIP("10.2.3.4")) {
+		t.Fatal("CIDR does not contain address")
+	}
+	if !nets[1].Contains(net.ParseIP("192.0.2.10")) || nets[1].Contains(net.ParseIP("192.0.2.11")) {
+		t.Fatal("bare IPv4 was not treated as a single address")
+	}
+	if !nets[2].Contains(net.ParseIP("2001:db8::1")) || nets[2].Contains(net.ParseIP("2001:db8::2")) {
+		t.Fatal("bare IPv6 was not treated as a single address")
+	}
+}
+
+func TestLoadRejectsInvalidTrustedProxy(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("IWMMD_SECRET_KEY", testKey())
+	t.Setenv("IWMMD_TRUSTED_PROXIES", "not-a-cidr")
+
+	_, err := Load(emptyConfig(t))
+	if err == nil || !strings.Contains(err.Error(), "proxy.trusted_proxies") {
+		t.Fatalf("error = %v", err)
 	}
 }

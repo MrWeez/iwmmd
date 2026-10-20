@@ -267,7 +267,7 @@ func randomToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(body), nil
 }
 
-// SessionIP returns the immediate peer address for storage.
+// SessionIP returns the effective client address for storage.
 func SessionIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err == nil {

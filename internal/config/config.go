@@ -186,6 +186,9 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("tls.hsts_max_age: %w", err)
 		}
 	}
+	if _, err := ParseTrustedProxies(c.Proxy.TrustedProxies); err != nil {
+		return fmt.Errorf("proxy.trusted_proxies: %w", err)
+	}
 	switch c.Log.Level {
 	case "debug", "info", "warn", "error":
 	default:
