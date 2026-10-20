@@ -43,6 +43,22 @@ Health endpoints:
 - `GET /healthz` is liveness.
 - `GET /readyz` checks SQLite and the schema.
 
+## Standalone static binary
+
+Each release includes statically linked Linux binaries for `amd64` and `arm64`, as raw executables and tar archives. Download the matching archive and `checksums.txt` from the release page:
+
+```sh
+VERSION=1.1.0
+ARCH=amd64
+curl -LO "https://github.com/MrWeez/iwmmd/releases/download/v${VERSION}/iwmmd_${VERSION}_linux_${ARCH}.tar.gz"
+curl -LO "https://github.com/MrWeez/iwmmd/releases/download/v${VERSION}/checksums.txt"
+sha256sum -c --ignore-missing checksums.txt
+tar -xzf "iwmmd_${VERSION}_linux_${ARCH}.tar.gz"
+sudo install -m 0755 "iwmmd_${VERSION}_linux_${ARCH}/iwmmd" /usr/local/bin/iwmmd
+```
+
+The binary is built with `CGO_ENABLED=0` and Go's `netgo` resolver. It has no runtime C library dependency. Use the same configuration and data directory as the container deployment.
+
 ## Build locally
 
 The local build uses the same root `Dockerfile` as the published image:

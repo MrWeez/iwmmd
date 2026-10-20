@@ -6,7 +6,7 @@ Self-hosted domain expiration monitor for small teams. Checks domain expiration 
 
 - Status: v1 design
 - Last updated: 2026-10-20
-- Deployment: published GHCR image and local build, standalone binary optional
+- Deployment: published GHCR image, static Linux binaries, and local build
 - Target scale: up to 100 monitored domains, single instance
 
 ## Table of contents
@@ -52,7 +52,7 @@ Self-hosted domain expiration monitor for small teams. Checks domain expiration 
 - Alert history, delivery attempts, and audit log.
 - Dark and light UI.
 - Docker Compose/run as primary deployment.
-- Published multi-arch image on GHCR.
+- Published multi-arch image and static Linux binaries.
 - Copy-paste Compose quick start with the published image.
 - Local image build from source for FOSS users.
 - Standalone binary with TOML config as secondary deployment.
@@ -321,7 +321,9 @@ The advanced part is not distributed infrastructure. It is durable job state, id
 /.dockerignore
 
 /.github/workflows
-  release.yml            GHCR multi-arch image build
+  release.yml            image, static binary, and GitHub release build
+/.github/release-notes
+  vX.Y.Z.md              release notes used by the release workflow
 
 /deploy
   iwmmd.service          standalone systemd unit
@@ -2223,87 +2225,36 @@ FOSS build requirements:
 - Build is reproducible from a clean checkout.
 - `README.md` documents local build, quick start, and upgrade.
 
-### 17.4 GHCR release workflow
+### 17.4 Release workflow
 
 Workflow file: `.github/workflows/release.yml`.
 
 Trigger:
 
-- Push tag matching `v*`.
-- Manual `workflow_dispatch`.
+- Push tag matching `v*.*.*`.
 
 Permissions:
 
-```yaml
-permissions:
-  contents: read
-  packages: write
-  id-token: write
-```
+- `contents: read` and `packages: write` for the image and binary jobs.
+- `contents: write` for the release job.
 
-Workflow:
+Jobs:
 
-```yaml
-name: release
+- `image` builds and pushes the multi-arch GHCR image.
+- `binaries` builds the embedded SPA, cross-compiles static Linux binaries for `amd64` and `arm64`, verifies they are statically linked, packages raw binaries and tar archives, and generates `checksums.txt`.
+- `release` downloads the binary artifact and creates or updates the GitHub release from `.github/release-notes/<tag>.md`, attaching every binary asset.
 
-on:
-  push:
-    tags:
-      - "v*"
-  workflow_dispatch:
+Rules:
 
-permissions:
-  contents: read
-  packages: write
-  id-token: write
-
-jobs:
-  image:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build date
-        id: builddate
-        run: echo "value=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
-
-      - uses: docker/metadata-action@v5
-        id: meta
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=sha
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-') }}
-
-      - uses: docker/build-push-action@v6
-        id: build
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            VERSION=${{ github.ref_name }}
-            COMMIT=${{ github.sha }}
-            BUILD_DATE=${{ steps.builddate.outputs.value }}
-          provenance: true
-          sbom: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-```
+- CI and local build use the same `Dockerfile`.
+- CI builds both architectures.
+- Local build builds the native architecture by default.
+- Release binary builds use `CGO_ENABLED=0`, `-tags netgo`, `-trimpath`, and version ldflags.
+- GHCR package visibility is public for FOSS distribution.
+- Anonymous pulls are supported.
+- Release workflow fails on build error or a missing release-notes file.
+- `latest` only moves on stable tags.
+- Version and commit are visible in `/api/v1/meta` and `iwmmd version`.
 
 Optional supply chain additions:
 
@@ -2313,20 +2264,10 @@ Optional supply chain additions:
 - Dependabot for Go, npm, GitHub Actions, and base images.
 - Pin base images by digest.
 
-Rules:
-
-- CI and local build use the same `Dockerfile`.
-- CI builds both architectures.
-- Local build builds the native architecture by default.
-- GHCR package visibility is public for FOSS distribution.
-- Anonymous pulls are supported.
-- Release workflow fails on build error, not on missing optional signature.
-- `latest` only moves on stable tags.
-- Version and commit are visible in `/api/v1/meta`.
-
 ### 17.5 Standalone
 
-- Static binary.
+- Static Linux binaries for `amd64` and `arm64`, published on each GitHub release with checksums.
+- Raw executables and tar archives include the binary; archives also include `LICENSE`.
 - Copy `config.example.toml` to `/etc/iwmmd/config.toml`.
 - TOML keys use general names, no `IWMMD_` prefix.
 - Environment file uses `IWMMD_` prefixed names and overrides TOML.
@@ -2617,8 +2558,9 @@ Separate from logs.
 - Retention jobs.
 - Backup and restore.
 - Standalone systemd docs.
-- GHCR release workflow.
+- Release workflow.
 - Multi-arch image build.
+- Static Linux binary release assets.
 - SBOM and provenance.
 - Published Compose quick start.
 - Local build docs for FOSS users.

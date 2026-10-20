@@ -63,3 +63,112 @@ jobs:
           cache-to: type=gha,mode=max
           provenance: true
           sbom: true
+
+  binaries:
+    name: Build static Linux binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Build web
+        working-directory: web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Build and package static binaries
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          build_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          ldflags="-s -w \
+            -X github.com/mrweez/iwmmd/internal/platform/version.Version=${GITHUB_REF_NAME} \
+            -X github.com/mrweez/iwmmd/internal/platform/version.Commit=${GITHUB_SHA} \
+            -X github.com/mrweez/iwmmd/internal/platform/version.Date=${build_date}"
+
+          mkdir -p dist
+
+          for arch in amd64 arm64; do
+            name="iwmmd_${version}_linux_${arch}"
+            CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build \
+              -trimpath \
+              -buildvcs=false \
+              -tags netgo \
+              -ldflags="$ldflags" \
+              -o "dist/${name}" \
+              ./cmd/iwmmd
+
+            file "dist/${name}" | grep -q "statically linked"
+
+            stage="$(mktemp -d)"
+            mkdir -p "${stage}/${name}"
+            cp "dist/${name}" "${stage}/${name}/iwmmd"
+            cp LICENSE "${stage}/${name}/LICENSE"
+            tar -C "$stage" -czf "dist/${name}.tar.gz" "$name"
+            rm -rf "$stage"
+          done
+
+          (cd dist && sha256sum iwmmd_* > checksums.txt)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iwmmd-static-binaries
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    name: Publish GitHub release
+    needs: [image, binaries]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: iwmmd-static-binaries
+          path: dist
+
+      - name: Publish release and assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          notes=".github/release-notes/${GITHUB_REF_NAME}.md"
+
+          if [ ! -f "$notes" ]; then
+            echo "Missing release notes: $notes" >&2
+            exit 1
+          fi
+
+          (cd dist && sha256sum -c checksums.txt)
+
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" \
+              --title "IWMMD ${version}" \
+              --notes-file "$notes"
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* \
+              --verify-tag \
+              --title "IWMMD ${version}" \
+              --notes-file "$notes"
+          fi
