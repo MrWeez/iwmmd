@@ -1,6 +1,7 @@
 import { useMemo, useState, type ComponentType, type FormEvent, type SVGProps } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
+  ApiError,
   api,
   useChannels,
   useMe,
@@ -101,7 +102,8 @@ export function ChannelsPage() {
       setTestResult({ tone: 'ok', message: `Test delivered through ${channel?.name ?? 'the channel'}.` })
     },
     onError: (error) => {
-      setTestResult({ tone: 'error', message: errorMessage(error) })
+      const message = error instanceof ApiError && error.detail ? error.detail : errorMessage(error)
+      setTestResult({ tone: 'error', message })
     },
     onSettled: () => setTestingID(null),
   })

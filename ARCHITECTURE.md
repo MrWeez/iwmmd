@@ -1158,7 +1158,7 @@ X-IWMMD-Delivery-Id: <uuid>
 
 - Incoming webhook URL.
 - Optional display name and avatar.
-- Rich embed with domain, expiry date, days left, and dashboard link.
+- Rich embed with tone color, structured fields, footer timestamp, and dashboard link button.
 - Escape domain values.
 - Handle Discord rate limits.
 - Webhook URL treated as secret.
