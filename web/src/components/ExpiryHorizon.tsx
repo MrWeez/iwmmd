@@ -18,7 +18,7 @@ const ranges: Array<{ value: HorizonRange; label: string; title: string }> = [
 
 const labelWidth = 112
 const labelGap = 10
-const laneHeight = 26
+const laneHeight = 40
 const baselineOffset = 14
 const minChartHeight = 208
 
@@ -164,29 +164,35 @@ export function ExpiryHorizon({ domains = [] }: { domains?: HorizonDomain[] }) {
                   />
                 ))}
                 <span className="absolute inset-x-0 bottom-0 h-px bg-line-strong" aria-hidden="true" />
+                {plotted.map((domain) => (
+                  <span
+                    key={`line-${domain.id}`}
+                    className="pointer-events-none absolute bottom-0 w-px bg-line-strong"
+                    style={{
+                      left: `${domain.left}%`,
+                      height: `${baselineOffset + domain.lane * laneHeight + 4}px`,
+                    }}
+                    aria-hidden="true"
+                  />
+                ))}
                 {plotted.map((domain) => {
                   const dotBottom = baselineOffset + domain.lane * laneHeight
-                  const labelBottom = dotBottom + 12
+                  const labelBottom = dotBottom + 14
                   return (
                     <div
                       key={domain.id}
-                      className="absolute bottom-0"
+                      className="absolute bottom-0 z-10"
                       style={{ left: `${domain.left}%` }}
                       aria-label={`${domain.name}, ${daysLabel(domain.daysRemaining)}`}
                     >
                       <span
-                        className="absolute bottom-0 left-0 w-px bg-line-strong"
-                        style={{ height: `${dotBottom + 4}px` }}
-                        aria-hidden="true"
-                      />
-                      <span
-                        className={`absolute left-[-4px] size-2 rounded-full ring-4 ring-surface-2 ${markerTone(domain.daysRemaining)}`}
+                        className={`absolute left-[-4px] z-10 size-2 rounded-full ring-4 ring-surface-2 ${markerTone(domain.daysRemaining)}`}
                         style={{ bottom: `${dotBottom}px` }}
                         aria-hidden="true"
                       />
                       <span
                         title={`${domain.name} · ${daysLabel(domain.daysRemaining)}`}
-                        className="absolute max-w-28 truncate rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-[10px] text-ink"
+                        className="absolute z-20 max-w-28 truncate rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-[10px] text-ink"
                         style={{
                           bottom: `${labelBottom}px`,
                           transform:

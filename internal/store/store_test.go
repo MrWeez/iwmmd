@@ -397,3 +397,41 @@ func TestClaimedNotificationIsNotReactivated(t *testing.T) {
 		t.Fatalf("state = %q, want sent", sent.State)
 	}
 }
+
+func TestListAuditIncludesActorIdentity(t *testing.T) {
+	st := openTestStore(t)
+	ctx := context.Background()
+	now := time.Date(2026, time.October, 20, 12, 0, 0, 0, time.UTC)
+
+	user, err := st.UpsertUser(ctx, User{
+		Issuer:      "https://id.example.com",
+		Subject:     "audit-user",
+		Email:       "admin@example.com",
+		DisplayName: "Audit Admin",
+		Role:        "admin",
+	}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.WriteAudit(ctx, AuditInput{
+		ActorUserID: user.ID,
+		Action:      "domain.create",
+		EntityType:  "domain",
+		EntityID:    "dom_audit",
+		IP:          "203.0.113.5",
+	}, now); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := st.ListAudit(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("audit entries = %d, want 1", len(entries))
+	}
+	entry := entries[0]
+	if entry.ActorUserID != user.ID || entry.ActorEmail != "admin@example.com" || entry.ActorDisplayName != "Audit Admin" {
+		t.Fatalf("actor = %q %q %q", entry.ActorUserID, entry.ActorEmail, entry.ActorDisplayName)
+	}
+}

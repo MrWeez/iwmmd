@@ -236,16 +236,18 @@ func (a *API) audit(r *http.Request, actor store.User, action, entityType, entit
 }
 
 type auditDTO struct {
-	ID          string    `json:"id"`
-	ActorUserID string    `json:"actor_user_id,omitempty"`
-	Action      string    `json:"action"`
-	EntityType  string    `json:"entity_type"`
-	EntityID    string    `json:"entity_id,omitempty"`
-	BeforeJSON  string    `json:"before,omitempty"`
-	AfterJSON   string    `json:"after,omitempty"`
-	IP          string    `json:"ip,omitempty"`
-	UserAgent   string    `json:"user_agent,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID               string    `json:"id"`
+	ActorUserID      string    `json:"actor_user_id,omitempty"`
+	ActorEmail       string    `json:"actor_email,omitempty"`
+	ActorDisplayName string    `json:"actor_display_name,omitempty"`
+	Action           string    `json:"action"`
+	EntityType       string    `json:"entity_type"`
+	EntityID         string    `json:"entity_id,omitempty"`
+	BeforeJSON       string    `json:"before,omitempty"`
+	AfterJSON        string    `json:"after,omitempty"`
+	IP               string    `json:"ip,omitempty"`
+	UserAgent        string    `json:"user_agent,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 type jobDTO struct {
@@ -265,7 +267,8 @@ func toAuditDTOs(items []store.AuditEntry) []auditDTO {
 	out := make([]auditDTO, 0, len(items))
 	for _, item := range items {
 		out = append(out, auditDTO{
-			ID: item.ID, ActorUserID: item.ActorUserID, Action: item.Action,
+			ID: item.ID, ActorUserID: item.ActorUserID, ActorEmail: item.ActorEmail,
+			ActorDisplayName: item.ActorDisplayName, Action: item.Action,
 			EntityType: item.EntityType, EntityID: item.EntityID, BeforeJSON: item.BeforeJSON,
 			AfterJSON: item.AfterJSON, IP: item.IP, UserAgent: item.UserAgent, CreatedAt: item.CreatedAt,
 		})

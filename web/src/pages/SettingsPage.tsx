@@ -556,6 +556,10 @@ function UsersPanel() {
                   <td className="px-4 py-3 sm:px-5">
                     <p className="text-xs font-semibold text-ink">{user.display_name || user.email}</p>
                     <p className="mt-0.5 text-[10px] text-faint">{user.email}</p>
+                    <p className="mt-1 break-all font-mono text-[9px] text-faint" title="User ID">
+                      <span className="select-none uppercase tracking-[0.08em]">ID</span>{' '}
+                      <span className="select-all text-muted">{user.id}</span>
+                    </p>
                   </td>
                   <td className="px-4 py-3 sm:px-5">
                     <Select
@@ -613,9 +617,30 @@ function AuditPanel() {
                   <p className="mt-0.5 text-[10px] text-faint">
                     {entry.entity_type}
                     {entry.entity_id ? ` · ${entry.entity_id}` : ''}
-                    {entry.actor_user_id ? ` · actor ${entry.actor_user_id.slice(0, 8)}` : ''}
                     {entry.ip ? ` · ${entry.ip}` : ''}
                   </p>
+                  {entry.actor_user_id ? (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-faint">
+                      <span className="text-[9px] font-semibold uppercase tracking-[0.08em]">Actor</span>
+                      {entry.actor_display_name || entry.actor_email ? (
+                        <span className="font-medium text-muted">
+                          {entry.actor_display_name || entry.actor_email}
+                        </span>
+                      ) : null}
+                      {entry.actor_display_name &&
+                      entry.actor_email &&
+                      entry.actor_display_name !== entry.actor_email ? (
+                        <span>{entry.actor_email}</span>
+                      ) : null}
+                      <span className="text-[9px] font-semibold uppercase tracking-[0.08em]">ID</span>
+                      <code
+                        className="select-all break-all rounded border border-line bg-surface-2 px-1 py-0.5 font-mono text-[9px] text-muted"
+                        title="User ID"
+                      >
+                        {entry.actor_user_id}
+                      </code>
+                    </div>
+                  ) : null}
                 </div>
                 <p className="text-[10px] text-faint">{formatDateTime(entry.created_at)}</p>
               </div>

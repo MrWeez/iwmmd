@@ -190,6 +190,8 @@ export type Notification = {
 export type AuditEntry = {
   id: string
   actor_user_id?: string
+  actor_email?: string
+  actor_display_name?: string
   action: string
   entity_type: string
   entity_id?: string

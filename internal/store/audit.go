@@ -37,10 +37,13 @@ func (s *Store) ListAudit(ctx context.Context, limit int) ([]AuditEntry, error) 
 		limit = 200
 	}
 	rows, err := s.Reader.QueryContext(ctx, `
-		SELECT id, COALESCE(actor_user_id, ''), action, entity_type, COALESCE(entity_id, ''),
-			COALESCE(before_json, ''), COALESCE(after_json, ''), COALESCE(ip, ''),
-			COALESCE(user_agent, ''), created_at
-		FROM audit_log ORDER BY created_at DESC LIMIT ?`, limit)
+		SELECT a.id, COALESCE(a.actor_user_id, ''), COALESCE(u.email, ''),
+			COALESCE(u.display_name, ''), a.action, a.entity_type, COALESCE(a.entity_id, ''),
+			COALESCE(a.before_json, ''), COALESCE(a.after_json, ''), COALESCE(a.ip, ''),
+			COALESCE(a.user_agent, ''), a.created_at
+		FROM audit_log a
+		LEFT JOIN users u ON u.id = a.actor_user_id
+		ORDER BY a.created_at DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -49,8 +52,9 @@ func (s *Store) ListAudit(ctx context.Context, limit int) ([]AuditEntry, error) 
 	for rows.Next() {
 		var a AuditEntry
 		var createdAt string
-		if err := rows.Scan(&a.ID, &a.ActorUserID, &a.Action, &a.EntityType, &a.EntityID,
-			&a.BeforeJSON, &a.AfterJSON, &a.IP, &a.UserAgent, &createdAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.ActorUserID, &a.ActorEmail, &a.ActorDisplayName, &a.Action,
+			&a.EntityType, &a.EntityID, &a.BeforeJSON, &a.AfterJSON, &a.IP, &a.UserAgent,
+			&createdAt); err != nil {
 			return nil, err
 		}
 		a.CreatedAt = parseTime(createdAt)

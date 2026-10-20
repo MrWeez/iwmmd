@@ -168,16 +168,18 @@ type Job struct {
 
 // AuditEntry is an immutable admin/action record.
 type AuditEntry struct {
-	ID          string
-	ActorUserID string
-	Action      string
-	EntityType  string
-	EntityID    string
-	BeforeJSON  string
-	AfterJSON   string
-	IP          string
-	UserAgent   string
-	CreatedAt   time.Time
+	ID               string
+	ActorUserID      string
+	ActorEmail       string
+	ActorDisplayName string
+	Action           string
+	EntityType       string
+	EntityID         string
+	BeforeJSON       string
+	AfterJSON        string
+	IP               string
+	UserAgent        string
+	CreatedAt        time.Time
 }
 
 // Session is a server-side login session.

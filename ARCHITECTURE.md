@@ -1098,7 +1098,9 @@ Each channel provides:
 
 - Global SMTP settings.
 - Per-channel recipient list.
-- HTML and plain text templates.
+- Responsive HTML and plain-text templates.
+- Subject and body have distinct roles; the body does not repeat the subject.
+- Shared branding, status tone, facts, and a single action link.
 - From address configurable.
 - TLS modes: STARTTLS, implicit TLS, plaintext opt-in only.
 - Certificate validation on by default.
@@ -1400,7 +1402,7 @@ Audit events include:
 - Failed notification retry.
 - Session revocation.
 
-Audit record includes actor, action, entity, redacted before/after, IP, user agent, timestamp.
+Audit record includes actor, action, entity, redacted before/after, IP, user agent, timestamp. Admin responses include the actor user ID, email, and display name.
 
 ### 11.6 SQLite file security
 
