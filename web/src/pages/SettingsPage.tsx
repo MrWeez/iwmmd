@@ -46,14 +46,6 @@ function errorMessage(error: unknown): string {
   return 'The request could not be completed.'
 }
 
-function Code({ children }: { children: string }) {
-  return (
-    <code className="rounded border border-line bg-surface-2 px-1 py-0.5 font-mono text-[10px] text-ink">
-      {children}
-    </code>
-  )
-}
-
 type Tab = 'runtime' | 'users' | 'audit' | 'jobs'
 
 const tabs: Array<{ id: Tab; label: string }> = [
@@ -92,74 +84,47 @@ export function SettingsPage() {
         </Banner>
       ) : null}
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Panel title="Instance" description="What this process is doing right now." bodyClassName="px-4 sm:px-5">
-          <dl>
-            <DefinitionRow label="Authentication">
-              <div className="flex flex-wrap items-center gap-2">
-                <StatusPill tone={authConfigured ? 'ok' : 'warn'}>
-                  {authConfigured ? 'OIDC configured' : 'OIDC not configured'}
-                </StatusPill>
-                <span className="text-[11px] text-muted">
-                  {meta.data?.provider ? titleCase(meta.data.provider) : 'No provider preset'}
-                  {meta.data?.issuer ? ` · ${meta.data.issuer}` : ''}
-                </span>
-              </div>
-            </DefinitionRow>
-            <DefinitionRow label="Built-in TLS">
-              <StatusPill tone={tlsEnabled ? 'ok' : 'neutral'}>
-                {tlsEnabled ? 'Enabled' : 'Disabled, reverse proxy expected'}
+      <Panel title="Instance" description="What this process is doing right now." bodyClassName="px-4 sm:px-5">
+        <dl>
+          <DefinitionRow label="Authentication">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusPill tone={authConfigured ? 'ok' : 'warn'}>
+                {authConfigured ? 'OIDC configured' : 'OIDC not configured'}
               </StatusPill>
-            </DefinitionRow>
-            <DefinitionRow label="Storage">
-              <div className="flex items-center gap-2">
-                <DatabaseIcon className="size-3.5 text-faint" />
-                <span>SQLite with WAL. One writer, pooled readers.</span>
-              </div>
-            </DefinitionRow>
-            <DefinitionRow label="Instance lock">
-              <div className="flex items-center gap-2">
-                <ShieldIcon className="size-3.5 text-faint" />
-                <span>One IWMMD process per data directory.</span>
-              </div>
-            </DefinitionRow>
-            <DefinitionRow label="Version">
-              <span className="tnum">{formatVersion(meta.data?.version)}</span>
-            </DefinitionRow>
-            <DefinitionRow label="Commit">
-              <span className="font-mono">{shortCommit(meta.data?.commit)}</span>
-            </DefinitionRow>
-            <DefinitionRow label="Built">
-              <span className="tnum">{meta.data?.date ?? 'unknown'}</span>
-            </DefinitionRow>
-          </dl>
-        </Panel>
-
-        <Panel title="Configuration" description="How this instance is shaped at startup." bodyClassName="px-4 sm:px-5">
-          <dl>
-            <DefinitionRow label="Config file">
-              <Code>/etc/iwmmd/config.toml</Code> when present, otherwise defaults.
-            </DefinitionRow>
-            <DefinitionRow label="Environment">
-              <Code>IWMMD_</Code> prefixed variables override the file.
-            </DefinitionRow>
-            <DefinitionRow label="Precedence">
-              environment, then config file, then built-in defaults.
-            </DefinitionRow>
-            <DefinitionRow label="Master key">
-              <Code>IWMMD_SECRET_KEY</Code> or <Code>IWMMD_SECRET_KEY_FILE</Code>. Generate with{' '}
-              <Code>iwmmd gen-key</Code>.
-            </DefinitionRow>
-            <DefinitionRow label="Authorization">
-              OIDC claims first, then a verified email domain, then an explicit email. Admin access requires an
-              admin group or named admin email.
-            </DefinitionRow>
-            <DefinitionRow label="Delivery">
-              SMTP, generic webhook, Discord, and Telegram. Secrets are AES-256-GCM encrypted at rest.
-            </DefinitionRow>
-          </dl>
-        </Panel>
-      </div>
+              <span className="text-[11px] text-muted">
+                {meta.data?.provider ? titleCase(meta.data.provider) : 'No provider preset'}
+                {meta.data?.issuer ? ` · ${meta.data.issuer}` : ''}
+              </span>
+            </div>
+          </DefinitionRow>
+          <DefinitionRow label="Built-in TLS">
+            <StatusPill tone={tlsEnabled ? 'ok' : 'neutral'}>
+              {tlsEnabled ? 'Enabled' : 'Disabled, reverse proxy expected'}
+            </StatusPill>
+          </DefinitionRow>
+          <DefinitionRow label="Storage">
+            <div className="flex items-center gap-2">
+              <DatabaseIcon className="size-3.5 text-faint" />
+              <span>SQLite with WAL. One writer, pooled readers.</span>
+            </div>
+          </DefinitionRow>
+          <DefinitionRow label="Instance lock">
+            <div className="flex items-center gap-2">
+              <ShieldIcon className="size-3.5 text-faint" />
+              <span>One IWMMD process per data directory.</span>
+            </div>
+          </DefinitionRow>
+          <DefinitionRow label="Version">
+            <span className="tnum">{formatVersion(meta.data?.version)}</span>
+          </DefinitionRow>
+          <DefinitionRow label="Commit">
+            <span className="font-mono">{shortCommit(meta.data?.commit)}</span>
+          </DefinitionRow>
+          <DefinitionRow label="Built">
+            <span className="tnum">{meta.data?.date ?? 'unknown'}</span>
+          </DefinitionRow>
+        </dl>
+      </Panel>
 
       {isAdmin ? (
         <div className="flex gap-1 overflow-x-auto rounded-md border border-line bg-surface p-1">

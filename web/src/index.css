@@ -103,11 +103,6 @@
   .text-balance {
     text-wrap: balance;
   }
-
-  .horizon-grid {
-    background-image: linear-gradient(to right, var(--line) 1px, transparent 1px);
-    background-size: calc(100% / 6) 100%;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

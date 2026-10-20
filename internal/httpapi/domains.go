@@ -239,7 +239,8 @@ func (a *API) rawCheck(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) domainNotifications(w http.ResponseWriter, r *http.Request) {
-	items, err := a.deps.Store.ListNotifications(r.Context(), chi.URLParam(r, "domainID"), "", "", parseLimit(r, 50, 200), false)
+	items, err := a.deps.Store.ListNotifications(r.Context(), chi.URLParam(r, "domainID"), "", "", parseLimit(r, 50, 200), false,
+		r.URL.Query().Get("include_future") == "true")
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -311,7 +312,7 @@ func (a *API) listIncidents(w http.ResponseWriter, r *http.Request) {
 func (a *API) listNotifications(w http.ResponseWriter, r *http.Request) {
 	items, err := a.deps.Store.ListNotifications(r.Context(), r.URL.Query().Get("domain_id"),
 		r.URL.Query().Get("channel_id"), r.URL.Query().Get("state"), parseLimit(r, 50, 200),
-		r.URL.Query().Get("exclude_archived") == "true")
+		r.URL.Query().Get("exclude_archived") == "true", r.URL.Query().Get("include_future") == "true")
 	if err != nil {
 		writeServiceError(w, err)
 		return

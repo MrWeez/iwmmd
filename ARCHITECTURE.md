@@ -994,6 +994,8 @@ stateDiagram-v2
 
 Mute is a delivery gate, not a notification state. Pending notifications are not sent while muted.
 
+Future pending notifications remain durable in the outbox table, but delivery-history views hide them by default. Set `include_future=true` on notification list endpoints to inspect the full schedule.
+
 ### 8.9 Retry policy
 
 - Default max attempts: 8.
@@ -1467,7 +1469,7 @@ Error shape:
 | POST | `/api/v1/domains/{id}/mute` | Mute expiry alerts |
 | DELETE | `/api/v1/domains/{id}/mute` | Unmute |
 | GET | `/api/v1/domains/{id}/checks` | Check history |
-| GET | `/api/v1/domains/{id}/notifications` | Alert history |
+| GET | `/api/v1/domains/{id}/notifications` | Alert history; future pending entries hidden unless `include_future=true` |
 | GET | `/api/v1/domains/{id}/incidents` | System incidents |
 
 ### 12.4 Alert rule endpoints
@@ -1501,7 +1503,7 @@ Error shape:
 | PUT | `/api/v1/settings/alerts` | Timezone, default time, pause |
 | PUT | `/api/v1/settings/retention` | Retention policy |
 | GET | `/api/v1/incidents` | List system incidents |
-| GET | `/api/v1/notifications` | Delivery outbox, with optional archived-domain exclusion |
+| GET | `/api/v1/notifications` | Delivery outbox; excludes archived domains with `exclude_archived=true` and future pending entries unless `include_future=true` |
 | POST | `/api/v1/notifications/{id}/retry` | Retry delivery |
 | GET | `/api/v1/users` | List OIDC-provisioned users |
 | POST | `/api/v1/users/{id}/revoke-sessions` | Revoke user sessions |
@@ -1540,10 +1542,11 @@ Error shape:
 
 - Domains expiring in 30, 14, 7, 3, and 1 days.
 - Expired domains.
+- Expiry horizon with 90-day and 1-year ranges, stacked labels, and no overlap for same-day domains.
 - Domains with unknown expiry.
 - Domains with failed checks.
 - Recent alerts and failed deliveries.
-- Upcoming alert schedule.
+- Upcoming alert schedule available on demand in the delivery outbox.
 - Quick actions: add domain, manual check, mute.
 
 ### 13.3 Domain list

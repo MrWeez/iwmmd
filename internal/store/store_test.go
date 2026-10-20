@@ -241,14 +241,14 @@ func TestListNotificationsExcludeArchived(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	all, err := st.ListNotifications(ctx, "", "", "", 50, false)
+	all, err := st.ListNotifications(ctx, "", "", "", 50, false, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(all) != 3 {
 		t.Fatalf("all notifications = %d, want 3", len(all))
 	}
-	visible, err := st.ListNotifications(ctx, "", "", "", 50, true)
+	visible, err := st.ListNotifications(ctx, "", "", "", 50, true, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,6 +259,57 @@ func TestListNotificationsExcludeArchived(t *testing.T) {
 		if item.DomainID == "dom_archived" {
 			t.Fatal("archived domain notification was not excluded")
 		}
+	}
+}
+
+func TestListNotificationsHidesFuturePending(t *testing.T) {
+	st := openTestStore(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	for _, item := range []struct {
+		key         string
+		state       string
+		scheduledAt time.Time
+	}{
+		{key: "past", state: "pending", scheduledAt: now.Add(-time.Hour)},
+		{key: "future", state: "pending", scheduledAt: now.AddDate(1, 0, 0)},
+		{key: "future-canceled", state: "canceled", scheduledAt: now.AddDate(2, 0, 0)},
+	} {
+		n, _, err := st.EnqueueNotification(ctx, NotificationInput{
+			Kind:        "expiry",
+			DedupeKey:   "future-filter-" + item.key,
+			ScheduledAt: item.scheduledAt,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if item.state == "canceled" {
+			if err := st.CancelNotification(ctx, n.ID, now); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	visible, err := st.ListNotifications(ctx, "", "", "", 50, false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(visible) != 2 {
+		t.Fatalf("visible notifications = %d, want 2", len(visible))
+	}
+	for _, item := range visible {
+		if item.DedupeKey == "future-filter-future" {
+			t.Fatal("future pending notification was not hidden")
+		}
+	}
+
+	withFuture, err := st.ListNotifications(ctx, "", "", "", 50, false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(withFuture) != 3 {
+		t.Fatalf("notifications with future = %d, want 3", len(withFuture))
 	}
 }
 

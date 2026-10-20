@@ -463,6 +463,7 @@ export const api = {
     state?: string
     limit?: number
     exclude_archived?: boolean
+    include_future?: boolean
   } = {}) => request<{ items: Notification[] }>(`/api/v1/notifications${queryString(params)}`),
 
   domainNotifications: (id: string) =>
@@ -576,6 +577,7 @@ export function useNotifications(params: {
   state?: string
   limit?: number
   exclude_archived?: boolean
+  include_future?: boolean
 } = {}) {
   return useQuery({
     queryKey: ['notifications', params],

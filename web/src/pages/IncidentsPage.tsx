@@ -38,6 +38,7 @@ export function IncidentsPage() {
   const me = useMe()
   const isAdmin = me.data?.user?.role === 'admin'
   const [state, setState] = useState('all')
+  const [showScheduled, setShowScheduled] = useState(false)
   const [retryTarget, setRetryTarget] = useState<Notification | null>(null)
 
   const incidents = useIncidents({ limit: 100 })
@@ -45,6 +46,7 @@ export function IncidentsPage() {
     state: state === 'all' ? undefined : state,
     limit: 100,
     exclude_archived: true,
+    include_future: showScheduled || undefined,
   })
   const domains = useDomains({ limit: 200 })
 
@@ -95,7 +97,7 @@ export function IncidentsPage() {
         <Summary label="Open incidents" value={openIncidents.length} tone={openIncidents.length ? 'warn' : 'ok'} />
         <Summary label="Failed deliveries" value={failed} tone={failed ? 'error' : 'ok'} />
         <Summary
-          label="Queued notifications"
+          label="Pending deliveries"
           value={items.filter((item) => item.state === 'pending' || item.state === 'sending').length}
           tone="neutral"
         />
@@ -151,17 +153,29 @@ export function IncidentsPage() {
 
       <Panel
         title="Delivery outbox"
-        description="Current and system deliveries. Archived domain history stays in the domain detail."
+        description={
+          showScheduled
+            ? 'All deliveries, including future scheduled alerts.'
+            : 'Due and completed deliveries. Future scheduled alerts are hidden.'
+        }
         action={
-          <Select value={state} onChange={(event) => setState(event.target.value)} className="w-36" aria-label="Filter notification state">
-            <option value="all">All states</option>
-            <option value="pending">Pending</option>
-            <option value="sending">Sending</option>
-            <option value="sent">Sent</option>
-            <option value="failed">Failed</option>
-            <option value="suppressed">Suppressed</option>
-            <option value="canceled">Canceled</option>
-          </Select>
+          <div className="flex flex-wrap items-center gap-2">
+            <SecondaryButton
+              onClick={() => setShowScheduled((value) => !value)}
+              title={showScheduled ? 'Hide future scheduled alerts' : 'Include future scheduled alerts'}
+            >
+              {showScheduled ? 'Hide scheduled' : 'Show scheduled'}
+            </SecondaryButton>
+            <Select value={state} onChange={(event) => setState(event.target.value)} className="w-36" aria-label="Filter notification state">
+              <option value="all">All states</option>
+              <option value="pending">Pending</option>
+              <option value="sending">Sending</option>
+              <option value="sent">Sent</option>
+              <option value="failed">Failed</option>
+              <option value="suppressed">Suppressed</option>
+              <option value="canceled">Canceled</option>
+            </Select>
+          </div>
         }
       >
         {notifications.isPending ? (
@@ -172,7 +186,11 @@ export function IncidentsPage() {
               compact
               icon={AlertIcon}
               title="No notifications in this state"
-              description="Alert rules generate notifications once a domain has a usable expiry date and a channel."
+              description={
+                showScheduled
+                  ? 'Alert rules generate notifications once a domain has a usable expiry date and a channel.'
+                  : 'No due or past notifications match this filter. Future scheduled alerts are hidden.'
+              }
             />
           </div>
         ) : (

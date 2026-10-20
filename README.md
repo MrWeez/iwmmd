@@ -48,7 +48,7 @@ Health endpoints:
 Each release includes statically linked Linux binaries for `amd64` and `arm64`, as raw executables and tar archives. Download the matching archive and `checksums.txt` from the release page:
 
 ```sh
-VERSION=1.1.0
+VERSION=1.1.1
 ARCH=amd64
 curl -LO "https://github.com/MrWeez/iwmmd/releases/download/v${VERSION}/iwmmd_${VERSION}_linux_${ARCH}.tar.gz"
 curl -LO "https://github.com/MrWeez/iwmmd/releases/download/v${VERSION}/checksums.txt"

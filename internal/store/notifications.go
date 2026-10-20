@@ -240,7 +240,7 @@ func (s *Store) CancelPendingExpiryAll(ctx context.Context, at time.Time) error 
 }
 
 // ListNotifications returns notifications with domain and channel names.
-func (s *Store) ListNotifications(ctx context.Context, domainID, channelID, state string, limit int, excludeArchived bool) ([]Notification, error) {
+func (s *Store) ListNotifications(ctx context.Context, domainID, channelID, state string, limit int, excludeArchived, includeFuture bool) ([]Notification, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
@@ -260,6 +260,11 @@ func (s *Store) ListNotifications(ctx context.Context, domainID, channelID, stat
 	}
 	if excludeArchived {
 		where = append(where, "(d.id IS NULL OR d.state != 'archived')")
+	}
+	// Future pending entries stay durable but are not delivery history yet.
+	if !includeFuture {
+		where = append(where, "NOT (n.state = 'pending' AND n.scheduled_at > ?)")
+		args = append(args, formatTime(time.Now().UTC()))
 	}
 	args = append(args, limit)
 	rows, err := s.Reader.QueryContext(ctx, `SELECT `+notificationColumns+`,
